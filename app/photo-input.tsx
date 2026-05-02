@@ -11,7 +11,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -174,30 +173,17 @@ export default function PhotoInputScreen(): React.JSX.Element {
             <Text style={styles.warningTitle}>⚠️ Could not read text automatically</Text>
             <Text style={styles.warningText}>
               This usually happens on restricted WiFi networks.{'\n'}
-              Try switching to cellular data, or type the message below.
+              Try switching to cellular data and uploading the photo again.
             </Text>
           </View>
         )}
 
-        {/* Extracted text */}
-        {imageUri && !isExtracting && (
-          <View style={styles.textSection}>
-            <Text style={styles.textLabel}>
-              {extractedText ? '✅ Text found — edit if needed:' : '✏️ Type the message text:'}
-            </Text>
-            <TextInput
-              style={styles.textInput}
-              multiline
-              value={extractedText}
-              onChangeText={setExtractedText}
-              placeholder="Type what the message says…"
-              placeholderTextColor={Colors.grayText}
-              textAlignVertical="top"
-              autoCorrect={false}
-              accessibilityLabel="Message text"
-            />
+        {/* Text found confirmation */}
+        {imageUri && !isExtracting && extractedText ? (
+          <View style={styles.textFoundBox}>
+            <Text style={styles.textFoundLabel}>✅ Text found — ready to check</Text>
           </View>
-        )}
+        ) : null}
 
         {/* Analyze */}
         {imageUri && !isExtracting && (
@@ -297,19 +283,15 @@ const styles = StyleSheet.create({
   },
   warningTitle: { fontSize: 18, fontWeight: '700', color: Colors.darkText },
   warningText: { fontSize: 16, color: Colors.grayText, lineHeight: 24 },
-  textSection: { gap: 8 },
-  textLabel: { fontSize: 18, fontWeight: '600', color: Colors.darkText },
-  textInput: {
-    backgroundColor: '#FFFFFF',
+  textFoundBox: {
+    backgroundColor: '#EDF7EE',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.softBlue,
     padding: 18,
-    fontSize: 18,
-    color: Colors.darkText,
-    minHeight: 140,
-    lineHeight: 26,
+    borderWidth: 1,
+    borderColor: Colors.green,
+    alignItems: 'center',
   },
+  textFoundLabel: { fontSize: 18, fontWeight: '600', color: Colors.darkText },
   analyzeBtn: {
     backgroundColor: Colors.deepNavy,
     borderRadius: 16,

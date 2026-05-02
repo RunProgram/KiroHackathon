@@ -9,14 +9,13 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { loadRecentResult, loadTrustedContact } from '../lib/storage';
+import { loadRecentResult, loadTrustedContacts } from '../lib/storage';
 import { AnalysisResult, TrustedContact } from '../types';
 
-// ---------------------------------------------------------------------------
-// Context shape
-// ---------------------------------------------------------------------------
-
 interface AppContextValue {
+  trustedContacts: TrustedContact[];
+  setTrustedContacts: (contacts: TrustedContact[]) => void;
+  // Keep singular for backward compat — returns first contact
   trustedContact: TrustedContact | null;
   setTrustedContact: (contact: TrustedContact | null) => void;
   recentResult: AnalysisResult | null;
@@ -28,6 +27,8 @@ interface AppContextValue {
 // ---------------------------------------------------------------------------
 
 export const AppContext = createContext<AppContextValue>({
+  trustedContacts: [],
+  setTrustedContacts: () => {},
   trustedContact: null,
   setTrustedContact: () => {},
   recentResult: null,
@@ -43,35 +44,41 @@ interface AppContextProviderProps {
 }
 
 export function AppContextProvider({ children }: AppContextProviderProps): React.JSX.Element {
-  const [trustedContact, setTrustedContact] = useState<TrustedContact | null>(null);
+  const [trustedContacts, setTrustedContacts] = useState<TrustedContact[]>([]);
   const [recentResult, setRecentResult] = useState<AnalysisResult | null>(null);
 
-  // Load persisted values from AsyncStorage on mount
+  // Derived: first contact for backward compat
+  const trustedContact = trustedContacts[0] ?? null;
+  function setTrustedContact(contact: TrustedContact | null): void {
+    if (contact === null) {
+      setTrustedContacts([]);
+    } else {
+      setTrustedContacts((prev) => {
+        const without = prev.filter((c) => c.id !== contact.id);
+        return [contact, ...without];
+      });
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-
-    async function loadPersistedState(): Promise<void> {
-      const [contact, result] = await Promise.all([
-        loadTrustedContact(),
+    async function load(): Promise<void> {
+      const [contacts, result] = await Promise.all([
+        loadTrustedContacts(),
         loadRecentResult(),
       ]);
-
       if (!cancelled) {
-        if (contact !== null) setTrustedContact(contact);
+        if (contacts.length > 0) setTrustedContacts(contacts);
         if (result !== null) setRecentResult(result);
       }
     }
-
-    loadPersistedState();
-
-    return () => {
-      cancelled = true;
-    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   return (
     <AppContext.Provider
-      value={{ trustedContact, setTrustedContact, recentResult, setRecentResult }}
+      value={{ trustedContacts, setTrustedContacts, trustedContact, setTrustedContact, recentResult, setRecentResult }}
     >
       {children}
     </AppContext.Provider>

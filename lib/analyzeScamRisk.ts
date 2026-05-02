@@ -353,8 +353,10 @@ function detectScamType(flags: RedFlag[]): ScamType {
 function buildDoNow(flags: RedFlag[]): string[] {
   const items: string[] = [];
 
-  // Always first
-  items.push('Hang up or stop responding');
+  // Only recommend hanging up if there are actual red flags
+  if (flags.length > 0) {
+    items.push('Hang up or stop responding');
+  }
 
   if (flags.includes('urgency')) {
     items.push('Take a breath — real emergencies allow time to verify');
@@ -384,8 +386,13 @@ function buildDoNow(flags: RedFlag[]): string[] {
     items.push('Do not send any money or transfer any funds');
   }
 
-  // Always include "call a trusted person" if we have room and haven't hit 4 yet
-  if (items.length < 4) {
+  if (flags.length === 0) {
+    // Probably Safe — reassuring, cautious guidance
+    items.push('You can continue, but stay alert');
+    items.push('Never share personal information or passwords');
+    items.push('If anything feels off, trust your instincts and hang up');
+  } else if (items.length < 4) {
+    // Still room — add trusted person advice
     items.push('Call a trusted family member or friend to talk it over');
   }
 

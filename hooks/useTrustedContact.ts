@@ -1,57 +1,53 @@
 /**
- * useTrustedContact — hook for reading and managing the saved TrustedContact.
- *
- * Requirements: 6.1, 6.2, 6.4, 6.5
+ * useTrustedContact — hook for managing up to 3 trusted contacts.
  */
 
-import { saveTrustedContact } from '../lib/storage';
+import { saveTrustedContacts } from '../lib/storage';
 import { validatePhoneNumber } from '../lib/validation';
 import { TrustedContact } from '../types';
 import { useAppContext } from './useAppContext';
 
-interface UseTrustedContactResult {
-  /** The currently saved trusted contact, or null if none has been saved. */
-  contact: TrustedContact | null;
-  /**
-   * Validates the contact's phone number, persists the contact to AsyncStorage,
-   * and updates the context.
-   *
-   * @throws {Error} If the phone number is not a valid format.
-   */
-  saveContact: (contact: TrustedContact) => Promise<void>;
-  /**
-   * Clears the trusted contact from context (sets to null).
-   * Does not delete from AsyncStorage for MVP.
-   */
-  clearContact: () => Promise<void>;
-}
+export const MAX_TRUSTED_CONTACTS = 3;
 
-/**
- * Hook for reading and managing the saved TrustedContact.
- *
- * Must be used inside an `AppContextProvider`.
- */
-export function useTrustedContact(): UseTrustedContactResult {
-  const { trustedContact, setTrustedContact } = useAppContext();
+export function useTrustedContact() {
+  const { trustedContacts, setTrustedContacts, trustedContact } = useAppContext();
 
   async function saveContact(contact: TrustedContact): Promise<void> {
     const validation = validatePhoneNumber(contact.phoneNumber);
+    if (!validation.valid) throw new Error(validation.error);
 
-    if (!validation.valid) {
-      throw new Error(validation.error);
+    const existing = trustedContacts.findIndex((c) => c.id === contact.id);
+    let updated: TrustedContact[];
+    if (existing >= 0) {
+      // Update in place
+      updated = trustedContacts.map((c) => (c.id === contact.id ? contact : c));
+    } else {
+      if (trustedContacts.length >= MAX_TRUSTED_CONTACTS) {
+        throw new Error(`You can only save up to ${MAX_TRUSTED_CONTACTS} trusted contacts.`);
+      }
+      updated = [...trustedContacts, contact];
     }
 
-    await saveTrustedContact(contact);
-    setTrustedContact(contact);
+    await saveTrustedContacts(updated);
+    setTrustedContacts(updated);
+  }
+
+  async function removeContact(id: string): Promise<void> {
+    const updated = trustedContacts.filter((c) => c.id !== id);
+    await saveTrustedContacts(updated);
+    setTrustedContacts(updated);
   }
 
   async function clearContact(): Promise<void> {
-    setTrustedContact(null);
+    await saveTrustedContacts([]);
+    setTrustedContacts([]);
   }
 
   return {
-    contact: trustedContact,
+    contact: trustedContact,           // first contact (backward compat)
+    contacts: trustedContacts,         // all contacts
     saveContact,
+    removeContact,
     clearContact,
   };
 }

@@ -4,7 +4,7 @@
 
 import * as Speech from 'expo-speech';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -64,11 +64,17 @@ const FLAG_LABELS: Record<string, string> = {
 export default function ResultsScreen(): React.JSX.Element {
   const router = useRouter();
   const { recentResult, trustedContact } = useAppContext();
+  const [ready, setReady] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const [ready, setReady] = React.useState(false);
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 300);
     return () => clearTimeout(t);
+  }, []);
+
+  // Stop speech when leaving screen
+  useEffect(() => {
+    return () => { Speech.stop(); };
   }, []);
 
   useEffect(() => {
@@ -92,20 +98,54 @@ export default function ResultsScreen(): React.JSX.Element {
     );
   }
 
-  function handleSpeak(): void {
+  async function handleSpeakToggle(): Promise<void> {
+    if (isSpeaking) {
+      await Speech.stop();
+      setIsSpeaking(false);
+      return;
+    }
+
     const text =
-      config.headline +
-      '. ' +
+      config.headline + '. ' +
       (result.redFlags.length > 0
         ? 'Warning signs: ' + result.redFlags.map((f) => FLAG_LABELS[f] ?? f).join(', ') + '. '
         : '') +
-      'What to do: ' +
-      result.doNow.join('. ');
-    Speech.speak(text, { rate: 0.85 });
+      'What to do: ' + result.doNow.join('. ') + '. ' +
+      'What to say: ' + result.safeResponseScript;
+
+    setIsSpeaking(true);
+    Speech.speak(text, {
+      rate: 0.85,
+      onDone: () => setIsSpeaking(false),
+      onStopped: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
   }
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Pinned top bar — always visible */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => { Speech.stop(); router.back(); }}
+          accessibilityRole="button"
+        >
+          <Text style={styles.backBtnText}>← Back</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.speakBtn, isSpeaking && styles.speakBtnActive]}
+          onPress={handleSpeakToggle}
+          accessibilityRole="button"
+          accessibilityLabel={isSpeaking ? 'Stop reading aloud' : 'Read aloud'}
+        >
+          <Text style={styles.speakBtnText}>
+            {isSpeaking ? '⏹ Stop' : '🔊 Read aloud'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -159,7 +199,9 @@ export default function ResultsScreen(): React.JSX.Element {
           <Text style={styles.sectionTitle}>✅ What to do now</Text>
           {result.doNow.map((item, i) => (
             <View key={i} style={styles.actionRow}>
-              <Text style={styles.actionNumber}>{i + 1}</Text>
+              <View style={styles.actionNumber}>
+                <Text style={styles.actionNumberText}>{i + 1}</Text>
+              </View>
               <Text style={styles.actionText}>{item}</Text>
             </View>
           ))}
@@ -178,40 +220,22 @@ export default function ResultsScreen(): React.JSX.Element {
 
         {/* What to say */}
         <View style={styles.scriptSection}>
-          <Text style={styles.sectionTitle}>💬 What to say to them</Text>
+          <Text style={styles.scriptTitle}>💬 What to say to them</Text>
           <Text style={styles.scriptText}>"{result.safeResponseScript}"</Text>
         </View>
 
-        {/* Action buttons */}
-        <View style={styles.actions}>
+        {/* Call button */}
+        {!result.caregiverRecommended && (
           <TouchableOpacity
-            style={styles.speakBtn}
-            onPress={handleSpeak}
+            style={styles.callBtn}
+            onPress={handleCall}
             accessibilityRole="button"
           >
-            <Text style={styles.speakBtnText}>🔊 Read this aloud to me</Text>
+            <Text style={styles.callBtnText}>
+              📞 Call {trustedContact?.name ?? 'trusted person'}
+            </Text>
           </TouchableOpacity>
-
-          {!result.caregiverRecommended && (
-            <TouchableOpacity
-              style={styles.callBtn}
-              onPress={handleCall}
-              accessibilityRole="button"
-            >
-              <Text style={styles.callBtnText}>
-                📞 Call {trustedContact?.name ?? 'trusted person'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.homeBtn}
-            onPress={() => router.back()}
-            accessibilityRole="button"
-          >
-            <Text style={styles.homeBtnText}>← Back to home</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -219,14 +243,39 @@ export default function ResultsScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.cream },
+  empty: { flex: 1, backgroundColor: Colors.cream },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: Colors.cream,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  backBtn: { paddingVertical: 6, paddingRight: 12 },
+  backBtnText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
+  speakBtn: {
+    backgroundColor: Colors.softBlue,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  speakBtnActive: {
+    backgroundColor: Colors.red,
+  },
+  speakBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: 48,
     gap: 16,
   },
-  empty: { flex: 1, backgroundColor: Colors.cream },
+
   riskBanner: {
     borderRadius: 20,
     borderWidth: 2,
@@ -248,6 +297,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 22,
   },
+
   caregiverAlert: {
     backgroundColor: Colors.red,
     borderRadius: 16,
@@ -272,6 +322,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.red,
   },
+
   section: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -283,99 +334,43 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.darkText,
-  },
-  flagRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  flagDot: {
-    fontSize: 18,
-    color: Colors.red,
-    fontWeight: '700',
-    marginTop: 1,
-  },
-  flagText: {
-    fontSize: 18,
-    color: Colors.darkText,
-    flex: 1,
-    lineHeight: 26,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkText },
+  flagRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  flagDot: { fontSize: 18, color: Colors.red, fontWeight: '700', marginTop: 2 },
+  flagText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
+  actionRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   actionNumber: {
     width: 28,
     height: 28,
     borderRadius: 14,
     backgroundColor: Colors.deepNavy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  actionNumberText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 28,
-    overflow: 'hidden',
   },
-  actionText: {
-    fontSize: 18,
-    color: Colors.darkText,
-    flex: 1,
-    lineHeight: 26,
-  },
+  actionText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
+
   scriptSection: {
     backgroundColor: Colors.deepNavy,
     borderRadius: 16,
     padding: 20,
-    gap: 8,
+    gap: 10,
   },
-  scriptText: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    lineHeight: 28,
-    fontStyle: 'italic',
-  },
-  actions: {
-    gap: 12,
-    marginTop: 4,
-  },
-  speakBtn: {
-    backgroundColor: Colors.softBlue,
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-    minHeight: 72,
-    justifyContent: 'center',
-  },
-  speakBtnText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
+  scriptTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  scriptText: { fontSize: 18, color: '#FFFFFF', lineHeight: 28, fontStyle: 'italic' },
+
   callBtn: {
     backgroundColor: Colors.red,
     borderRadius: 16,
-    paddingVertical: 18,
+    paddingVertical: 20,
     alignItems: 'center',
     minHeight: 72,
     justifyContent: 'center',
   },
-  callBtnText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  homeBtn: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  homeBtnText: {
-    fontSize: 18,
-    color: Colors.softBlue,
-  },
+  callBtnText: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
 });

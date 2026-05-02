@@ -43,13 +43,23 @@ export default function DemoScenariosScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Back button pinned at top, outside scroll */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.back}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        <Text style={styles.title}>📚 Example Scams</Text>
         <Text style={styles.subtitle}>
           Tap any example to see how TrustPause would analyze it.
         </Text>
@@ -81,15 +91,21 @@ export default function DemoScenariosScreen(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.cream },
+  topBar: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 4,
+    backgroundColor: Colors.cream,
+  },
+  back: { paddingVertical: 8 },
+  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 48,
     gap: 16,
   },
-  back: { paddingVertical: 4 },
-  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
   title: { fontSize: 28, fontWeight: '800', color: Colors.darkText },
   subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
   list: { gap: 12 },

@@ -41,6 +41,7 @@ export interface AnalysisResult {
 }
 
 export interface TrustedContact {
+  id: string;
   name: string;
   phoneNumber: string;
   relationship: string;
