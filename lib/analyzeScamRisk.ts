@@ -1,16 +1,18 @@
 /**
- * Scam risk analysis engine.
+ * Scam risk analysis engine — v2 (tightened detection).
  *
- * Uses a weighted, multi-signal approach:
- *  1. Pattern matching against known red-flag categories (with per-flag weights)
- *  2. Co-occurrence bonuses when high-signal flag pairs appear together
- *  3. Confidence scoring based on match density relative to text length
- *  4. Scam-type classification from the dominant impersonation signal
+ * Philosophy: err on the side of caution. If someone is asking this app
+ * whether something is a scam, they already feel uneasy. We should validate
+ * that instinct rather than dismiss it.
  *
- * Risk thresholds (weighted score):
- *   ≥ 6  → High Risk
- *   ≥ 2  → Be Careful
- *   < 2  → Probably Safe
+ * Scoring approach:
+ *  1. Each rule has an explicit weight (no undefined defaults)
+ *  2. Any impersonation of an authority = automatic "Be Careful" minimum
+ *  3. Any request for money/credentials = automatic "Be Careful" minimum
+ *  4. Lowered thresholds: ≥4 High Risk, ≥1 Be Careful
+ *  5. Broader pattern matching with natural language variants
+ *  6. Sentiment signals: threats, fear, flattery, isolation
+ *  7. Single-flag escalation: some flags alone are enough for High Risk
  */
 
 import type { AnalysisResult, RedFlag, RiskLevel, ScamType } from '../types';
@@ -21,173 +23,122 @@ import type { AnalysisResult, RedFlag, RiskLevel, ScamType } from '../types';
 
 type RedFlagRule = {
   flag: RedFlag;
-  /** How much this flag contributes to the risk score (1 = baseline). */
   weight: number;
   patterns: RegExp[];
 };
 
 // ---------------------------------------------------------------------------
-// Rule definitions — ordered roughly by severity
+// Rule definitions — comprehensive pattern matching
 // ---------------------------------------------------------------------------
 
 export const RED_FLAG_RULES: RedFlagRule[] = [
-  {
-    flag: 'urgency',
-    patterns: [
-      /act now/i,
-      /immediately/i,
-      /\burgent\b/i,
-      /right away/i,
-      /limited time/i,
-      /expires today/i,
-      /within 24 hours/i,
-      /don't wait/i,
-      /do not wait/i,
-      /time is running out/i,
-      /last chance/i,
-      /deadline/i,
-      /as soon as possible/i,
-      /\basap\b/i,
-      // Natural language additions
-      /right now/i,
-      /today only/i,
-      /must.*today/i,
-      /need.*now/i,
-      /hurry/i,
-      /quick(ly)?/i,
-      /fast/i,
-      /no time/i,
-      /running out/i,
-    ],
-  },
-  {
-    flag: 'secrecy',
-    patterns: [
-      /don'?t tell/i,
-      /keep this secret/i,
-      /don'?t mention/i,
-      /between us/i,
-      /no one else/i,
-      /keep it between/i,
-      /don'?t share/i,
-      /don'?t let anyone know/i,
-      /keep quiet/i,
-      /confidential/i,
-      /don'?t discuss/i,
-      /don'?t talk to/i,
-      /don'?t contact/i,
-      /only talk to me/i,
-      /just between/i,
-    ],
-  },
-  {
-    flag: 'money_transfer',
-    patterns: [
-      /wire transfer/i,
-      /send money/i,
-      /transfer funds/i,
-      /bank transfer/i,
-      /western union/i,
-      /money gram/i,
-      /moneygram/i,
-      /zelle/i,
-      /venmo/i,
-      /cash app/i,
-      /cashapp/i,
-      /cryptocurrency/i,
-      /bitcoin/i,
-      /crypto/i,
-      /send.*funds/i,
-      /transfer.*account/i,
-      // Natural language additions
-      /need.*money/i,
-      /send.*\$\d/i,
-      /\$\d+.*send/i,
-      /pay.*now/i,
-      /payment.*required/i,
-      /owe.*money/i,
-      /money.*owe/i,
-    ],
-  },
+  // ── CRITICAL: These alone can indicate a scam ─────────────────────────────
   {
     flag: 'gift_card',
-    weight: 3,
+    weight: 4,
     patterns: [
-      /gift card/i,
-      /itunes card/i,
-      /google play card/i,
-      /amazon gift/i,
-      /buy.*card/i,
-      /prepaid card/i,
-      /steam card/i,
-      /target gift/i,
-      /walmart gift/i,
-      /ebay gift/i,
-      /scratch.*card/i,
-    ],
-  },
-  {
-    flag: 'money_transfer',
-    weight: 3,
-    patterns: [
-      /wire transfer/i,
-      /send money/i,
-      /transfer funds/i,
-      /bank transfer/i,
-      /western union/i,
-      /money ?gram/i,
-      /\bzelle\b/i,
-      /\bvenmo\b/i,
-      /cash ?app/i,
-      /cryptocurrency/i,
-      /\bbitcoin\b/i,
-      /\bcrypto\b/i,
-      /send.*funds/i,
-      /transfer.*account/i,
+      /gift\s*card/i,
+      /itunes\s*card/i,
+      /google\s*play\s*card/i,
+      /amazon\s*gift/i,
+      /buy\s*(me\s+)?a?\s*card/i,
+      /prepaid\s*card/i,
+      /steam\s*card/i,
+      /target\s*gift/i,
+      /walmart\s*gift/i,
+      /ebay\s*gift/i,
+      /scratch.*card.*number/i,
+      /read.*card.*number/i,
+      /card.*code/i,
     ],
   },
   {
     flag: 'remote_access_request',
-    weight: 3,
+    weight: 4,
     patterns: [
-      /remote access/i,
+      /remote\s*access/i,
       /remote.*desktop/i,
       /teamviewer/i,
       /anydesk/i,
       /logmein/i,
       /screen.*shar/i,
       /shar.*screen/i,
-      /take control.*computer/i,
+      /take\s*control.*computer/i,
       /access.*computer/i,
       /install.*software/i,
       /download.*program/i,
       /allow.*access/i,
+      /let\s*me\s*(in|access|connect)/i,
+      /connect\s*to\s*your/i,
+      /remote.*connect/i,
     ],
   },
 
-  // ── Medium-high: credential harvesting ───────────────────────────────────
+  // ── HIGH: Money and credential requests ───────────────────────────────────
+  {
+    flag: 'money_transfer',
+    weight: 3,
+    patterns: [
+      /wire\s*transfer/i,
+      /send\s*(me\s+)?money/i,
+      /transfer\s*funds/i,
+      /bank\s*transfer/i,
+      /western\s*union/i,
+      /money\s*gram/i,
+      /moneygram/i,
+      /\bzelle\b/i,
+      /\bvenmo\b/i,
+      /cash\s*app/i,
+      /cashapp/i,
+      /cryptocurrency/i,
+      /\bbitcoin\b/i,
+      /\bcrypto\b/i,
+      /send.*funds/i,
+      /transfer.*account/i,
+      /need.*money/i,
+      /send.*\$\d/i,
+      /\$\d+.*send/i,
+      /pay\s*(me\s+)?now/i,
+      /payment.*required/i,
+      /owe.*money/i,
+      /money.*owe/i,
+      /pay\s*(a\s+)?fine/i,
+      /pay\s*(a\s+)?fee/i,
+      /pay\s*(a\s+)?penalty/i,
+      /deposit.*money/i,
+      /\bpay\s+up\b/i,
+      /settle.*payment/i,
+      /outstanding.*balance/i,
+      /overdue.*payment/i,
+    ],
+  },
   {
     flag: 'otp_request',
-    weight: 2.5,
+    weight: 3,
     patterns: [
       /one.?time.?password/i,
       /\botp\b/i,
-      /verification code/i,
-      /security code/i,
+      /verification\s*code/i,
+      /security\s*code/i,
       /confirm.*code/i,
-      /code.*sent to/i,
+      /code.*sent\s*to/i,
       /text.*code/i,
       /sms.*code/i,
-      /6.?digit code/i,
-      /authentication code/i,
+      /6.?digit\s*code/i,
+      /authentication\s*code/i,
       /pin.*sent/i,
+      /read\s*(me\s+)?the\s*code/i,
+      /what('s|\s+is)\s*the\s*code/i,
+      /give\s*me\s*the\s*code/i,
+      /tell\s*me\s*the\s*code/i,
+      /code\s*(I|we)\s*sent/i,
     ],
   },
   {
     flag: 'password_request',
-    weight: 2.5,
+    weight: 3,
     patterns: [
-      /your password/i,
+      /your\s*password/i,
       /enter.*password/i,
       /provide.*password/i,
       /share.*password/i,
@@ -196,244 +147,375 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /login.*credentials/i,
       /username.*password/i,
       /sign.?in.*details/i,
+      /what('s|\s+is)\s*your\s*password/i,
+      /tell\s*me\s*your\s*password/i,
+      /need\s*your\s*password/i,
+      /confirm\s*your\s*password/i,
     ],
   },
   {
     flag: 'ssn_medicare_request',
-    weight: 2.5,
+    weight: 3,
     patterns: [
-      /social security/i,
+      /social\s*security/i,
       /\bssn\b/i,
-      /medicare number/i,
-      /medicaid number/i,
-      /social security number/i,
+      /medicare\s*number/i,
+      /medicaid\s*number/i,
+      /social\s*security\s*number/i,
       /your.*medicare/i,
       /insurance.*number/i,
       /beneficiary.*number/i,
       /member.*id/i,
+      /last\s*four\s*(digits|numbers)/i,
+      /date\s*of\s*birth/i,
+      /mother'?s?\s*maiden/i,
+      /verify\s*your\s*identity/i,
+      /confirm\s*your\s*identity/i,
     ],
   },
 
-  // ── Medium: impersonation ─────────────────────────────────────────────────
+  // ── MEDIUM-HIGH: Impersonation ────────────────────────────────────────────
   {
     flag: 'impersonation_bank',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /\bbank\b.*calling/i,
-      /calling.*\bbank\b/i,
-      /fraud.*department/i,
-      /bank.*fraud/i,
-      /your.*bank.*account/i,
+      /\bbank\b/i,
+      /fraud\s*department/i,
       /suspicious.*transaction/i,
       /unauthorized.*transaction/i,
       /account.*compromised/i,
       /bank.*security/i,
-      /financial.*institution/i,
-      /chase bank/i,
-      /bank of america/i,
-      /wells fargo/i,
+      /financial\s*institution/i,
+      /chase/i,
+      /bank\s*of\s*america/i,
+      /wells\s*fargo/i,
       /citibank/i,
-      /i'?m.*with.*bank/i,
-      /i'?m.*from.*bank/i,
-      /this is.*bank/i,
-      /calling from.*bank/i,
-      /\bbank\b.*need/i,
-      /need.*\bbank\b/i,
-      /\bbank\b.*want/i,
-      /from.*\bbank\b/i,
-      /\bbank\b.*call/i,
-      /\bbank\b.*account/i,
+      /capital\s*one/i,
+      /credit\s*union/i,
       /account.*number/i,
       /routing.*number/i,
+      /debit\s*card/i,
+      /credit\s*card.*compromised/i,
+      /suspicious\s*activity/i,
+      /frozen.*account/i,
+      /account.*frozen/i,
+      /account.*locked/i,
+      /locked.*account/i,
+      /account.*suspended/i,
     ],
   },
   {
     flag: 'impersonation_amazon',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /amazon.*order/i,
-      /order.*amazon/i,
-      /amazon.*delivery/i,
-      /amazon.*package/i,
-      /amazon.*account/i,
-      /amazon.*prime/i,
-      /amazon.*customer service/i,
-      /amazon.*refund/i,
+      /amazon/i,
+      /\busps\b/i,
+      /\bfedex\b/i,
+      /\bups\b.*delivery/i,
+      /\bups\b.*package/i,
+      /united\s*parcel/i,
+      /postal\s*service/i,
       /package.*delivered/i,
       /delivery.*failed/i,
       /undelivered.*package/i,
-      // Natural language — "I'm from Amazon", "I'm with Amazon", "This is Amazon"
-      /i'?m.*with amazon/i,
-      /i'?m.*from amazon/i,
-      /this is amazon/i,
-      /calling from amazon/i,
-      /amazon.*calling/i,
-      /sophia.*amazon/i,
-      /amazon.*representative/i,
-      /amazon.*support/i,
-      /amazon.*team/i,
-      /amazon.*department/i,
+      /order.*flagged/i,
+      /flagged.*order/i,
+      /order.*suspicious/i,
+      /unauthorized.*purchase/i,
+      /unauthorized.*order/i,
+      /prime.*membership/i,
+      /prime.*renewal/i,
+      /refund.*order/i,
+      /tracking\s*(number|info|update)/i,
+      /delivery\s*(attempt|notice|update|fee)/i,
+      /package\s*(held|waiting|pending|returned)/i,
+      /reschedule\s*delivery/i,
+      /shipping\s*(fee|charge|label|update)/i,
+      /customs\s*(fee|charge|clearance)/i,
+      /click\s*(here|link|below)\s*to\s*(track|confirm|verify|schedule|update)/i,
     ],
   },
   {
     flag: 'impersonation_medicare',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /medicare.*calling/i,
-      /calling.*medicare/i,
-      /medicare.*card/i,
-      /new.*medicare/i,
+      /medicare/i,
+      /medicaid/i,
+      /health\s*insurance.*representative/i,
+      /new.*medicare\s*card/i,
       /medicare.*benefit/i,
-      /medicare.*representative/i,
       /medicare.*update/i,
-      /medicaid.*calling/i,
-      /health.*insurance.*representative/i,
-      /i'?m.*with.*medicare/i,
-      /i'?m.*from.*medicare/i,
-      /this is.*medicare/i,
+      /medicare.*expir/i,
+      /medicare.*renew/i,
+      /eligible.*benefit/i,
+      /health.*benefit/i,
     ],
   },
   {
     flag: 'impersonation_irs',
-    weight: 2,
+    weight: 2.5,
     patterns: [
       /\birs\b/i,
-      /internal revenue/i,
+      /internal\s*revenue/i,
       /tax.*owed/i,
-      /owe.*taxes/i,
-      /back taxes/i,
+      /owe.*tax/i,
+      /back\s*taxes/i,
       /tax.*debt/i,
       /tax.*warrant/i,
       /tax.*arrest/i,
       /tax.*penalty/i,
       /tax.*refund/i,
       /federal.*tax/i,
-      /i'?m.*with.*irs/i,
-      /i'?m.*from.*irs/i,
-      /this is.*irs/i,
-      /calling from.*irs/i,
+      /tax.*lien/i,
+      /tax.*audit/i,
+      /tax.*fraud/i,
+      /\btaxes\b.*\bpay\b/i,
+      /\bpay\b.*\btaxes\b/i,
+      /arrested.*tax/i,
+      /jail.*tax/i,
     ],
   },
   {
     flag: 'impersonation_government',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /social security administration/i,
-      /\bssa\b.*calling/i,
+      /social\s*security\s*administration/i,
+      /\bssa\b/i,
       /government.*agency/i,
       /federal.*agent/i,
-      /department of.*justice/i,
+      /department\s*of.*justice/i,
       /\bdoj\b/i,
-      /homeland security/i,
+      /homeland\s*security/i,
       /\bdhs\b/i,
-      /fbi.*calling/i,
-      /calling.*fbi/i,
+      /\bfbi\b/i,
+      /\bdea\b/i,
       /government.*official/i,
       /federal.*bureau/i,
-      /i'?m.*with.*government/i,
-      /i'?m.*from.*government/i,
-      /i'?m.*with.*federal/i,
-      /i'?m.*from.*federal/i,
-      /i'?m.*with.*social security/i,
-      /i'?m.*from.*social security/i,
+      /\bmarshals?\b/i,
+      /court\s*order/i,
+      /legal\s*action/i,
+      /lawsuit/i,
+      /subpoena/i,
     ],
   },
   {
     flag: 'impersonation_family',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /it'?s.*your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece)/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*(arrested|accident|hospital|trouble|jail)/i,
-      /grandm[ao].*it'?s me/i,
-      /grandp[ao].*it'?s me/i,
-      /it'?s me.*grandm[ao]/i,
-      /it'?s me.*grandp[ao]/i,
+      /it'?s\s*your\s*(son|daughter|grandson|granddaughter|grandchild|child|nephew|niece|brother|sister)/i,
+      /your\s*(son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*(arrested|accident|hospital|trouble|jail|hurt|emergency)/i,
+      /grandm[ao]/i,
+      /grandp[ao]/i,
+      /it'?s\s*me/i,
       /family.*emergency/i,
       /relative.*arrested/i,
+      /family\s*member.*(arrested|accident|hospital|trouble|jail|hurt)/i,
+      /loved\s*one.*(arrested|accident|hospital|trouble|jail|hurt)/i,
+      /bail\s*money/i,
+      /in\s*jail/i,
+      /been\s*arrested/i,
+      /in\s*the\s*hospital/i,
+      /had\s*an\s*accident/i,
     ],
   },
   {
     flag: 'impersonation_police',
-    weight: 2,
+    weight: 2.5,
     patterns: [
-      /police.*calling/i,
-      /calling.*police/i,
-      /officer.*calling/i,
-      /detective.*calling/i,
-      /sheriff.*calling/i,
-      /law enforcement/i,
+      /police/i,
+      /officer/i,
+      /detective/i,
+      /sheriff/i,
+      /law\s*enforcement/i,
       /warrant.*arrest/i,
       /arrest.*warrant/i,
-      /police.*department/i,
-      /local.*police/i,
+      /under\s*investigation/i,
+      /criminal.*charge/i,
+      /felony/i,
+      /misdemeanor/i,
     ],
   },
 
-  // ── Lower-severity: psychological manipulation ────────────────────────────
+  // ── MEDIUM: Psychological manipulation ────────────────────────────────────
   {
     flag: 'urgency',
-    weight: 1.5,
+    weight: 2,
     patterns: [
-      /act now/i,
+      /act\s*now/i,
       /immediately/i,
       /\burgent(ly)?\b/i,
-      /right away/i,
-      /limited time/i,
-      /expires today/i,
-      /within 24 hours/i,
-      /don'?t wait/i,
-      /do not wait/i,
-      /time is running out/i,
-      /last chance/i,
+      /right\s*away/i,
+      /limited\s*time/i,
+      /expires?\s*today/i,
+      /within\s*\d+\s*(hours?|minutes?)/i,
+      /don'?t\s*wait/i,
+      /do\s*not\s*wait/i,
+      /time\s*is\s*running\s*out/i,
+      /last\s*chance/i,
       /\bdeadline\b/i,
-      /as soon as possible/i,
+      /as\s*soon\s*as\s*possible/i,
       /\basap\b/i,
+      /right\s*now/i,
+      /today\s*only/i,
+      /must.*today/i,
+      /need.*now/i,
+      /\bhurry\b/i,
+      /no\s*time/i,
+      /running\s*out/i,
+      /before\s*it'?s?\s*too\s*late/i,
+      /don'?t\s*delay/i,
+      /time\s*sensitive/i,
+      /expir(e|es|ing)/i,
+      /suspend/i,
+      /cancel/i,
+      /shut\s*down/i,
+      /close\s*your\s*account/i,
+      /will\s*be\s*(arrested|prosecuted|charged)/i,
+      /going\s*to\s*(arrest|prosecute|charge)/i,
+      /if\s*you\s*don'?t/i,
+      /unless\s*you/i,
+      /or\s*else/i,
+      /consequences/i,
     ],
   },
   {
     flag: 'secrecy',
-    weight: 1.5,
+    weight: 2,
     patterns: [
-      /don'?t tell/i,
-      /keep this secret/i,
-      /don'?t mention/i,
-      /between us/i,
-      /no one else/i,
-      /keep it between/i,
-      /don'?t share/i,
-      /don'?t let anyone know/i,
-      /keep quiet/i,
+      /don'?t\s*tell/i,
+      /keep\s*(this|it)\s*secret/i,
+      /don'?t\s*mention/i,
+      /between\s*us/i,
+      /no\s*one\s*else/i,
+      /keep\s*it\s*between/i,
+      /don'?t\s*share/i,
+      /don'?t\s*let\s*anyone\s*know/i,
+      /keep\s*quiet/i,
       /\bconfidential\b/i,
-      /don'?t discuss/i,
+      /don'?t\s*discuss/i,
+      /don'?t\s*talk\s*to/i,
+      /don'?t\s*contact/i,
+      /only\s*talk\s*to\s*me/i,
+      /just\s*between/i,
+      /don'?t\s*hang\s*up/i,
+      /stay\s*on\s*the\s*(line|phone)/i,
+      /don'?t\s*call\s*(anyone|the\s*police|your\s*bank)/i,
+    ],
+  },
+
+  // ── MEDIUM-HIGH: Tech support, lottery, romance, delivery ─────────────────
+  {
+    flag: 'impersonation_tech_support',
+    weight: 3,
+    patterns: [
+      /tech\s*support/i,
+      /technical\s*support/i,
+      /microsoft\s*(support|technician|engineer)/i,
+      /apple\s*(support|technician|engineer)/i,
+      /your\s*computer\s*(has|is|was)\s*(a\s*)?(virus|infected|hacked|compromised)/i,
+      /virus\s*(on|in)\s*your/i,
+      /malware\s*(on|in)\s*your/i,
+      /hacker.*(your|access)/i,
+      /your.*(device|computer|laptop|phone)\s*(has been|is|was)\s*(hacked|compromised)/i,
+      /geek\s*squad/i,
+      /norton\s*(support|renewal|subscription)/i,
+      /mcafee\s*(support|renewal|subscription)/i,
+      /antivirus\s*(renewal|expir|subscription)/i,
+      /windows\s*(defender|security)\s*(alert|warning)/i,
+      /pop.?up.*(warning|alert|virus)/i,
+      /call\s*this\s*number.*(fix|remove|clean)/i,
+      /refund.*(tech|support|subscription|norton|mcafee|geek)/i,
+    ],
+  },
+  {
+    flag: 'lottery_prize_scam',
+    weight: 3,
+    patterns: [
+      /you('ve|\s+have)\s*(won|been\s*selected)/i,
+      /congratulations.*win/i,
+      /winner.*prize/i,
+      /prize.*winner/i,
+      /lottery/i,
+      /sweepstakes/i,
+      /jackpot/i,
+      /claim\s*(your|the)\s*(prize|reward|winnings|money)/i,
+      /free\s*(gift|prize|reward|vacation|trip|cruise|iphone|ipad|macbook)/i,
+      /selected\s*(for|as)\s*(a\s*)?(winner|recipient|prize)/i,
+      /\$\d+[,.]?\d*\s*(prize|reward|winnings|cash)/i,
+      /million\s*dollar/i,
+      /cash\s*prize/i,
+      /reward\s*program/i,
+      /exclusive\s*offer/i,
+      /special\s*promotion/i,
+      /you\s*qualify/i,
+      /pre.?approved/i,
+      /guaranteed\s*(approval|win|prize)/i,
+    ],
+  },
+  {
+    flag: 'romance_scam',
+    weight: 3,
+    patterns: [
+      /send\s*money.*love/i,
+      /love.*send\s*money/i,
+      /need\s*money.*(visit|come\s*see|travel|flight|ticket)/i,
+      /stuck\s*(in|at)\s*(a\s*)?(country|airport|hospital|overseas)/i,
+      /military.*(deployed|overseas|stationed).*money/i,
+      /inheritance.*(claim|release|transfer).*fee/i,
+      /customs\s*(fee|charge|duty)/i,
+      /can'?t\s*access\s*(my|the)\s*(money|funds|account)/i,
+      /oil\s*rig/i,
+      /deployed\s*overseas/i,
+      /send.*western\s*union.*love/i,
+      /met\s*(online|on\s*a\s*dating)/i,
+      /never\s*met\s*(in\s*person|face\s*to\s*face)/i,
     ],
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Co-occurrence bonuses
-// When two high-signal flags appear together the risk is multiplicatively worse.
-// Each pair adds a bonus to the weighted score.
+// Co-occurrence bonuses — amplify risk when multiple signals combine
 // ---------------------------------------------------------------------------
 
 type FlagPair = [RedFlag, RedFlag];
 
 const CO_OCCURRENCE_BONUSES: Array<{ pair: FlagPair; bonus: number }> = [
-  { pair: ['urgency', 'gift_card'], bonus: 2 },
-  { pair: ['urgency', 'money_transfer'], bonus: 2 },
-  { pair: ['urgency', 'otp_request'], bonus: 2 },
+  { pair: ['urgency', 'gift_card'], bonus: 3 },
+  { pair: ['urgency', 'money_transfer'], bonus: 3 },
+  { pair: ['urgency', 'otp_request'], bonus: 3 },
   { pair: ['urgency', 'secrecy'], bonus: 3 },
-  { pair: ['secrecy', 'money_transfer'], bonus: 2 },
-  { pair: ['secrecy', 'gift_card'], bonus: 2 },
-  { pair: ['impersonation_bank', 'otp_request'], bonus: 2 },
-  { pair: ['impersonation_bank', 'urgency'], bonus: 1.5 },
-  { pair: ['impersonation_irs', 'urgency'], bonus: 2 },
-  { pair: ['impersonation_government', 'urgency'], bonus: 2 },
-  { pair: ['impersonation_family', 'money_transfer'], bonus: 3 },
-  { pair: ['impersonation_family', 'gift_card'], bonus: 3 },
+  { pair: ['urgency', 'password_request'], bonus: 3 },
+  { pair: ['secrecy', 'money_transfer'], bonus: 3 },
+  { pair: ['secrecy', 'gift_card'], bonus: 3 },
+  { pair: ['impersonation_bank', 'otp_request'], bonus: 3 },
+  { pair: ['impersonation_bank', 'urgency'], bonus: 2 },
+  { pair: ['impersonation_bank', 'money_transfer'], bonus: 3 },
+  { pair: ['impersonation_bank', 'password_request'], bonus: 3 },
+  { pair: ['impersonation_irs', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_irs', 'money_transfer'], bonus: 3 },
+  { pair: ['impersonation_government', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_government', 'money_transfer'], bonus: 3 },
+  { pair: ['impersonation_family', 'money_transfer'], bonus: 4 },
+  { pair: ['impersonation_family', 'gift_card'], bonus: 4 },
   { pair: ['impersonation_family', 'urgency'], bonus: 3 },
-  { pair: ['impersonation_family', 'secrecy'], bonus: 3 },
-  { pair: ['remote_access_request', 'impersonation_bank'], bonus: 2 },
-  { pair: ['remote_access_request', 'impersonation_amazon'], bonus: 2 },
+  { pair: ['impersonation_family', 'secrecy'], bonus: 4 },
+  { pair: ['remote_access_request', 'impersonation_bank'], bonus: 3 },
+  { pair: ['remote_access_request', 'impersonation_amazon'], bonus: 3 },
+  { pair: ['remote_access_request', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_amazon', 'urgency'], bonus: 2 },
+  { pair: ['impersonation_amazon', 'money_transfer'], bonus: 3 },
+  { pair: ['impersonation_medicare', 'ssn_medicare_request'], bonus: 4 },
+  { pair: ['impersonation_police', 'money_transfer'], bonus: 4 },
+  { pair: ['impersonation_police', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_tech_support', 'remote_access_request'], bonus: 4 },
+  { pair: ['impersonation_tech_support', 'money_transfer'], bonus: 4 },
+  { pair: ['impersonation_tech_support', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_tech_support', 'gift_card'], bonus: 4 },
+  { pair: ['lottery_prize_scam', 'money_transfer'], bonus: 4 },
+  { pair: ['lottery_prize_scam', 'urgency'], bonus: 3 },
+  { pair: ['romance_scam', 'money_transfer'], bonus: 4 },
+  { pair: ['romance_scam', 'secrecy'], bonus: 4 },
+  { pair: ['romance_scam', 'urgency'], bonus: 3 },
 ];
 
 function computeCoOccurrenceBonus(flags: RedFlag[]): number {
@@ -448,7 +530,7 @@ function computeCoOccurrenceBonus(flags: RedFlag[]): number {
 }
 
 // ---------------------------------------------------------------------------
-// ScamType detection — first impersonation flag wins
+// ScamType detection
 // ---------------------------------------------------------------------------
 
 const IMPERSONATION_TO_SCAM_TYPE: Partial<Record<RedFlag, ScamType>> = {
@@ -459,6 +541,9 @@ const IMPERSONATION_TO_SCAM_TYPE: Partial<Record<RedFlag, ScamType>> = {
   impersonation_government: 'medicare_government',
   impersonation_family: 'grandparent_scam',
   impersonation_police: 'bank_impersonation',
+  impersonation_tech_support: 'tech_support',
+  lottery_prize_scam: 'lottery_prize',
+  romance_scam: 'romance_scam',
 };
 
 function detectScamType(flags: RedFlag[]): ScamType {
@@ -476,9 +561,8 @@ function detectScamType(flags: RedFlag[]): ScamType {
 function buildDoNow(flags: RedFlag[]): string[] {
   const items: string[] = [];
 
-  // Only recommend hanging up if there are actual red flags
   if (flags.length > 0) {
-    items.push('Hang up or stop responding');
+    items.push('Hang up or stop responding right now');
   }
 
   if (flags.includes('urgency')) {
@@ -486,7 +570,7 @@ function buildDoNow(flags: RedFlag[]): string[] {
   }
 
   if (flags.includes('gift_card')) {
-    items.push('Do not buy any gift cards');
+    items.push('Do NOT buy any gift cards — no real company asks for these');
   }
 
   if (
@@ -502,20 +586,18 @@ function buildDoNow(flags: RedFlag[]): string[] {
   }
 
   if (flags.includes('remote_access_request')) {
-    items.push('Do not allow anyone to access your computer remotely');
+    items.push('Do NOT allow anyone to access your computer remotely');
   }
 
   if (flags.includes('money_transfer')) {
-    items.push('Do not send any money or transfer any funds');
+    items.push('Do NOT send any money or transfer any funds');
   }
 
   if (flags.length === 0) {
-    // Probably Safe — reassuring, cautious guidance
     items.push('You can continue, but stay alert');
     items.push('Never share personal information or passwords');
     items.push('If anything feels off, trust your instincts and hang up');
   } else if (items.length < 4) {
-    // Still room — add trusted person advice
     items.push('Call a trusted family member or friend to talk it over');
   }
 
@@ -628,7 +710,6 @@ export function buildSuggestions(flags: RedFlag[], riskLevel: RiskLevel): string
     );
   }
 
-  // Fallback — always added to guarantee a minimum of 2 items
   items.push('If something feels wrong, trust that feeling. Hang up and talk to someone you trust.');
 
   return items.slice(0, 6);
@@ -652,6 +733,22 @@ export function buildVerificationQuestions(flags: RedFlag[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Flags that are so dangerous they alone warrant High Risk
+// ---------------------------------------------------------------------------
+
+const AUTO_HIGH_RISK_FLAGS: RedFlag[] = [
+  'gift_card',
+  'remote_access_request',
+  'money_transfer',
+  'otp_request',
+  'password_request',
+  'ssn_medicare_request',
+  'impersonation_tech_support',
+  'lottery_prize_scam',
+  'romance_scam',
+];
+
+// ---------------------------------------------------------------------------
 // Main analysis function
 // ---------------------------------------------------------------------------
 
@@ -672,28 +769,37 @@ export function analyzeScamRisk(inputText: string): AnalysisResult {
     weightedScore += computeCoOccurrenceBonus(detectedFlags);
   }
 
-  // Risk level thresholds based on weighted score
+  // Deduplicate flags
+  const uniqueFlags: RedFlag[] = [...new Set(detectedFlags)];
+
+  // ── Risk level determination ──────────────────────────────────────────────
+  // Tightened thresholds: ≥4 High Risk, ≥1 Be Careful
   let riskLevel: RiskLevel;
-  if (weightedScore >= 6) {
+
+  // Auto-escalate: certain flags alone are enough for High Risk
+  const hasAutoHighRisk = uniqueFlags.some((f) => AUTO_HIGH_RISK_FLAGS.includes(f));
+
+  if (weightedScore >= 3 || hasAutoHighRisk || uniqueFlags.length >= 2) {
     riskLevel = 'High Risk';
-  } else if (weightedScore >= 2) {
+  } else if (uniqueFlags.length > 0) {
+    // ANY single detected flag = at least "Be Careful"
     riskLevel = 'Be Careful';
   } else {
     riskLevel = 'Probably Safe';
   }
 
   const caregiverRecommended = riskLevel === 'High Risk';
-  const scamType = detectScamType(detectedFlags);
-  const doNow = buildDoNow(detectedFlags);
-  const doNotDo = buildDoNotDo(detectedFlags);
-  const safeResponseScript = buildSafeResponseScript(detectedFlags);
-  const suggestions = buildSuggestions(detectedFlags, riskLevel);
-  const verificationQuestions = buildVerificationQuestions(detectedFlags);
+  const scamType = detectScamType(uniqueFlags);
+  const doNow = buildDoNow(uniqueFlags);
+  const doNotDo = buildDoNotDo(uniqueFlags);
+  const safeResponseScript = buildSafeResponseScript(uniqueFlags);
+  const suggestions = buildSuggestions(uniqueFlags, riskLevel);
+  const verificationQuestions = buildVerificationQuestions(uniqueFlags);
 
   return {
     riskLevel,
     scamType,
-    redFlags: detectedFlags,
+    redFlags: uniqueFlags,
     doNow,
     doNotDo,
     safeResponseScript,

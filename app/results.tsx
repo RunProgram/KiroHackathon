@@ -113,12 +113,21 @@ export default function ResultsScreen(): React.JSX.Element {
       'What to do: ' + result.doNow.join('. ') + '. ' +
       'What to say: ' + result.safeResponseScript;
 
+    if (!text.trim()) {
+      Alert.alert('Nothing to Read', 'There is no text available to read aloud.');
+      return;
+    }
+
     setIsSpeaking(true);
     Speech.speak(text, {
+      language: 'en-US',
       rate: 0.85,
       onDone: () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
-      onError: () => setIsSpeaking(false),
+      onError: () => {
+        setIsSpeaking(false);
+        Alert.alert('Read Aloud Failed', 'Text-to-speech could not play the audio. Please try again.');
+      },
     });
   }
 
@@ -185,8 +194,8 @@ export default function ResultsScreen(): React.JSX.Element {
         {result.redFlags.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⚠️ Warning signs detected</Text>
-            {result.redFlags.map((flag) => (
-              <View key={flag} style={styles.flagRow}>
+            {result.redFlags.map((flag, i) => (
+              <View key={`${flag}-${i}`} style={styles.flagRow}>
                 <Text style={styles.flagDot}>•</Text>
                 <Text style={styles.flagText}>{FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ')}</Text>
               </View>

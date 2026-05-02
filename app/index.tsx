@@ -113,10 +113,10 @@ export default function HomeScreen(): React.JSX.Element {
             onPress={() => router.push('/voice-input')}
             accessibilityRole="button"
           >
-            <Text style={styles.bigBtnIcon}>🎤</Text>
+            <Text style={styles.bigBtnIcon}>✍️</Text>
             <View style={styles.bigBtnText}>
               <Text style={styles.bigBtnTitle}>Tell me what happened</Text>
-              <Text style={styles.bigBtnSub}>Describe a suspicious call or message</Text>
+              <Text style={styles.bigBtnSub}>Type out a suspicious call or message</Text>
             </View>
             <Text style={styles.bigBtnArrow}>›</Text>
           </TouchableOpacity>
@@ -143,6 +143,19 @@ export default function HomeScreen(): React.JSX.Element {
             <View style={styles.bigBtnText}>
               <Text style={styles.bigBtnTitle}>See example scams</Text>
               <Text style={styles.bigBtnSub}>Learn what common scams look like</Text>
+            </View>
+            <Text style={styles.bigBtnArrow}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.bigBtn}
+            onPress={() => router.push('/url-check')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.bigBtnIcon}>🔗</Text>
+            <View style={styles.bigBtnText}>
+              <Text style={styles.bigBtnTitle}>Check a suspicious link</Text>
+              <Text style={styles.bigBtnSub}>Paste a URL to scan for scams</Text>
             </View>
             <Text style={styles.bigBtnArrow}>›</Text>
           </TouchableOpacity>

@@ -49,8 +49,7 @@
           "photosPermission": "TrustPause needs access to your photos to analyze suspicious messages.",
           "cameraPermission": "TrustPause needs camera access to photograph suspicious messages."
         }
-      ],
-      "expo-speech-recognition"
+      ]
     ],
     "experiments": {
       "typedRoutes": true

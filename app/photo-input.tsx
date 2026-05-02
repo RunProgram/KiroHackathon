@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,7 +20,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
+import { analyzeUrl, type UrlAnalysisResult } from '../lib/analyzeUrl';
 import { extractTextFromImage } from '../lib/extractTextFromImage';
+
+/** Pull all URLs out of a block of text. */
+function extractUrls(text: string): string[] {
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+  const domainRegex = /(?:^|\s)((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|gov|edu|io|co|us|uk|info|biz|xyz|top|club|online|site|store|app|dev|me|tv|cc|ru|cn|tk|ml|ga|cf|gq|icu|buzz|work|click|link|space|pw|ws|fun|monster|rest|cam)[^\s<>"{}|\\^`\[\]]*)/gi;
+  const matches = new Set<string>();
+  for (const m of text.match(urlRegex) ?? []) matches.add(m);
+  for (const m of text.match(domainRegex) ?? []) matches.add(m.trim());
+  return [...matches];
+}
 
 export default function PhotoInputScreen(): React.JSX.Element {
   const router = useRouter();
@@ -30,15 +42,22 @@ export default function PhotoInputScreen(): React.JSX.Element {
   const [isExtracting, setIsExtracting] = useState(false);
   const [ocrFailed, setOcrFailed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [urlResults, setUrlResults] = useState<UrlAnalysisResult[]>([]);
 
   async function runOcr(uri: string): Promise<void> {
     setIsExtracting(true);
     setExtractedText('');
     setOcrFailed(false);
+    setUrlResults([]);
     try {
       const text = await extractTextFromImage(uri);
       if (text) {
         setExtractedText(text);
+        // Auto-scan any URLs found in the extracted text
+        const urls = extractUrls(text);
+        if (urls.length > 0) {
+          setUrlResults(urls.map((u) => analyzeUrl(u)));
+        }
       } else {
         setOcrFailed(true);
       }
@@ -185,6 +204,46 @@ export default function PhotoInputScreen(): React.JSX.Element {
           </View>
         ) : null}
 
+        {/* URL scan results */}
+        {urlResults.length > 0 && (
+          <View style={styles.urlSection}>
+            <Text style={styles.urlSectionTitle}>🔗 Links Found in Image</Text>
+            {urlResults.map((ur, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.urlCard,
+                  ur.riskLevel === 'Dangerous' && styles.urlCardDangerous,
+                  ur.riskLevel === 'Suspicious' && styles.urlCardSuspicious,
+                  ur.riskLevel === 'Probably Safe' && styles.urlCardSafe,
+                ]}
+              >
+                <View style={styles.urlCardHeader}>
+                  <Text style={styles.urlCardIcon}>
+                    {ur.riskLevel === 'Dangerous' ? '🚨' : ur.riskLevel === 'Suspicious' ? '⚠️' : '✅'}
+                  </Text>
+                  <Text style={[
+                    styles.urlCardRisk,
+                    ur.riskLevel === 'Dangerous' && { color: Colors.red },
+                    ur.riskLevel === 'Suspicious' && { color: Colors.amber },
+                    ur.riskLevel === 'Probably Safe' && { color: Colors.green },
+                  ]}>
+                    {ur.riskLevel}
+                  </Text>
+                </View>
+                <Text style={styles.urlCardUrl} numberOfLines={2}>{ur.url}</Text>
+                {ur.flags.length > 0 && (
+                  <View style={styles.urlCardFlags}>
+                    {ur.flags.map((flag, j) => (
+                      <Text key={j} style={styles.urlCardFlag}>• {flag}</Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Analyze */}
         {imageUri && !isExtracting && (
           <TouchableOpacity
@@ -304,4 +363,23 @@ const styles = StyleSheet.create({
   analyzeBtnText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
   cancelBtn: { alignItems: 'center', paddingVertical: 12 },
   cancelBtnText: { fontSize: 18, color: Colors.grayText },
+
+  // URL scan results
+  urlSection: { gap: 10 },
+  urlSectionTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkText },
+  urlCard: {
+    borderRadius: 14,
+    padding: 16,
+    gap: 8,
+    borderWidth: 2,
+  },
+  urlCardDangerous: { backgroundColor: '#FDECEA', borderColor: Colors.red },
+  urlCardSuspicious: { backgroundColor: '#FFF8E7', borderColor: Colors.amber },
+  urlCardSafe: { backgroundColor: '#EDF7EE', borderColor: Colors.green },
+  urlCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  urlCardIcon: { fontSize: 22 },
+  urlCardRisk: { fontSize: 18, fontWeight: '800' },
+  urlCardUrl: { fontSize: 14, color: Colors.grayText, fontFamily: 'monospace' },
+  urlCardFlags: { gap: 4 },
+  urlCardFlag: { fontSize: 15, color: Colors.darkText, lineHeight: 22 },
 });

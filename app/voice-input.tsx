@@ -1,11 +1,7 @@
 /**
- * Voice Input screen — describe what happened by typing or speaking.
+ * Text Input screen — describe what happened by typing.
  */
 
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
@@ -36,50 +32,9 @@ export default function VoiceInputScreen(): React.JSX.Element {
 
   const [text, setText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [recognizing, setRecognizing] = useState(false);
-
-  // Speech recognition event handlers
-  useSpeechRecognitionEvent('start', () => {
-    setRecognizing(true);
-  });
-
-  useSpeechRecognitionEvent('end', () => {
-    setRecognizing(false);
-  });
-
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcript = event.results[0]?.transcript;
-    if (transcript) {
-      setText(transcript);
-    }
-  });
-
-  useSpeechRecognitionEvent('error', (event) => {
-    console.log('Speech recognition error:', event.error, event.message);
-    setRecognizing(false);
-  });
-
-  async function handleMicPress(): Promise<void> {
-    if (recognizing) {
-      ExpoSpeechRecognitionModule.stop();
-    } else {
-      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!result.granted) {
-        return;
-      }
-      ExpoSpeechRecognitionModule.start({
-        lang: 'en-US',
-        interimResults: true,
-        continuous: true,
-      });
-    }
-  }
 
   async function handleAnalyze(): Promise<void> {
     Keyboard.dismiss();
-    if (recognizing) {
-      ExpoSpeechRecognitionModule.stop();
-    }
     const trimmed = text.trim();
     if (!trimmed) return;
     setIsAnalyzing(true);
@@ -92,7 +47,7 @@ export default function VoiceInputScreen(): React.JSX.Element {
     }
   }
 
-  const canAnalyze = text.trim().length > 0 && !isAnalyzing && !recognizing;
+  const canAnalyze = text.trim().length > 0 && !isAnalyzing;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -113,43 +68,11 @@ export default function VoiceInputScreen(): React.JSX.Element {
           </TouchableOpacity>
 
           {/* Header */}
-          <Text style={styles.title}>🎤 What happened?</Text>
+          <Text style={styles.title}>✍️ What happened?</Text>
           <Text style={styles.subtitle}>
-            Tap the microphone to speak, or type below.{'\n'}
-            Don't worry about getting it perfect — just tell us what they said.
+            Type what they said or what the message looked like.{'\n'}
+            Don't worry about getting it perfect — just tell us what happened.
           </Text>
-
-          {/* Big mic button */}
-          <View style={styles.micSection}>
-            <TouchableOpacity
-              style={[
-                styles.micBtn,
-                recognizing && styles.micBtnRecording,
-              ]}
-              onPress={handleMicPress}
-              disabled={isAnalyzing}
-              accessibilityRole="button"
-              accessibilityLabel={recognizing ? 'Stop recording' : 'Start recording'}
-            >
-              <Text style={styles.micBtnIcon}>{recognizing ? '⏹' : '🎤'}</Text>
-            </TouchableOpacity>
-            <Text style={styles.micLabel}>
-              {recognizing ? 'Listening… tap to stop' : 'Tap to speak'}
-            </Text>
-            {recognizing && (
-              <View style={styles.recordingIndicator}>
-                <View style={styles.recordingDot} />
-                <Text style={styles.recordingText}>Recording</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or type below</Text>
-            <View style={styles.dividerLine} />
-          </View>
 
           {/* Text input */}
           <TextInput
@@ -170,13 +93,14 @@ export default function VoiceInputScreen(): React.JSX.Element {
             textAlignVertical="top"
             autoCorrect
             autoCapitalize="sentences"
+            autoFocus
             accessibilityLabel="Describe what happened"
             inputAccessoryViewID={Platform.OS === 'ios' ? INPUT_ACCESSORY_ID : undefined}
             returnKeyType="default"
             onLayout={(e) => { inputYRef.current = e.nativeEvent.layout.y; }}
           />
 
-          {/* Example prompts — below the text box */}
+          {/* Example prompts */}
           <View style={styles.examples}>
             <Text style={styles.examplesLabel}>Or tap an example to start:</Text>
             {[
@@ -256,53 +180,6 @@ const styles = StyleSheet.create({
   backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
   title: { fontSize: 28, fontWeight: '800', color: Colors.darkText },
   subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
-
-  // Mic button
-  micSection: { alignItems: 'center', gap: 12, paddingVertical: 8 },
-  micBtn: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.deepNavy,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  micBtnRecording: {
-    backgroundColor: Colors.red,
-  },
-  micBtnIcon: { fontSize: 48 },
-  micLabel: { fontSize: 18, color: Colors.grayText, fontWeight: '600' },
-  recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  recordingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.red,
-  },
-  recordingText: { fontSize: 16, color: Colors.red, fontWeight: '700' },
-
-  // Divider
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#D9D5CE',
-  },
-  dividerText: { fontSize: 14, color: Colors.grayText },
-
   input: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -311,7 +188,7 @@ const styles = StyleSheet.create({
     padding: 18,
     fontSize: 20,
     color: Colors.darkText,
-    minHeight: 160,
+    minHeight: 180,
     lineHeight: 28,
   },
   examples: { gap: 8 },
