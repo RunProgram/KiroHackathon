@@ -1,0 +1,288 @@
+# Implementation Plan: TrustPause
+
+## Overview
+
+Implement TrustPause as an Expo + React Native + TypeScript app using Expo Router for navigation. The build proceeds bottom-up: types and constants first, then the analysis engine (with property tests), then services, then reusable components, then screens, and finally wiring everything together. Each phase produces runnable, testable code before the next phase begins.
+
+## Tasks
+
+- [x] 1. Project foundation — types, constants, and storage helpers
+  - [x] 1.1 Define all shared TypeScript types in `types/index.ts`
+    - Declare `RiskLevel`, `RedFlag`, `ScamType`, `AnalysisResult`, `TrustedContact`, `DemoScenario` exactly as specified in the design
+    - No `any` in public interfaces
+    - _Requirements: 9.5, 9.6_
+  - [x] 1.2 Create `constants/colors.ts` with the `Colors` palette object
+    - Values: deepNavy `#1E3A5F`, softBlue `#4F7CAC`, cream `#F7F4ED`, green `#5C8A5E`, amber `#D9A441`, red `#C65A46`, darkText `#1F2933`, grayText `#5B6670`
+    - _Requirements: 8.3_
+  - [x] 1.3 Create `constants/typography.ts` with the `Typography` constants object
+    - Values: bodySize 18, headingSize 24, captionSize 16, minTouchTarget 72
+    - _Requirements: 8.1_
+  - [x] 1.4 Create `constants/strings.ts` with all user-facing string literals
+    - Include button labels, screen titles, error messages, and all copy referenced in requirements
+    - _Requirements: 8.5_
+  - [x] 1.5 Create `constants/storage.ts` with `STORAGE_KEYS` (`trustpause:trusted_contact`, `trustpause:recent_result`)
+    - _Requirements: 9.4_
+  - [x] 1.6 Implement `lib/storage.ts` — AsyncStorage helper functions
+    - `saveTrustedContact(contact: TrustedContact): Promise<void>`
+    - `loadTrustedContact(): Promise<TrustedContact | null>`
+    - `saveRecentResult(result: AnalysisResult): Promise<void>`
+    - `loadRecentResult(): Promise<AnalysisResult | null>`
+    - Wrap all reads/writes in try/catch; read failures return `null`
+    - _Requirements: 6.2, 9.4_
+  - [x] 1.7 Write unit tests for `lib/storage.ts`
+    - Test `saveTrustedContact` / `loadTrustedContact` round-trip
+    - Test `saveRecentResult` / `loadRecentResult` round-trip
+    - Mock `@react-native-async-storage/async-storage`
+    - _Requirements: 6.2, 9.4_
+
+- [x] 2. Analysis engine — core logic and property tests
+  - [x] 2.1 Implement `lib/analyzeScamRisk.ts` — full rules-based engine
+    - Define `RED_FLAG_RULES` array with all `RedFlag` pattern sets (urgency, secrecy, money_transfer, gift_card, otp_request, password_request, ssn_medicare_request, remote_access_request, all impersonation variants)
+    - Implement `analyzeScamRisk(inputText: string): AnalysisResult`
+    - Risk level logic: ≥2 flags → "High Risk", 1 flag → "Be Careful", 0 flags → "Probably Safe"
+    - Set `caregiverRecommended: true` iff riskLevel is "High Risk"
+    - Populate `doNow` (2–4 items), `doNotDo` (1–3 items), `safeResponseScript` (non-empty) for every result
+    - Detect `scamType` from impersonation flags; default to `unknown`
+    - Set `analyzedAt` to `new Date().toISOString()` and `inputSummary` to first 100 chars of input
+    - Empty string input returns "Probably Safe" with empty `redFlags`
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11_
+  - [x] 2.2 Write property test — Property 1: risk level ↔ red flag count
+    - **Property 1: Risk level is determined solely by red flag count**
+    - **Validates: Requirements 4.2, 4.3, 4.4**
+    - Use `fc.string()` with 100 runs; assert riskLevel matches `redFlags.length` thresholds
+    - File: `__tests__/lib/analyzeScamRisk.property.test.ts`
+  - [x] 2.3 Write property test — Property 2: red flag count consistency
+    - **Property 2: Red flag count consistency**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5**
+    - Assert `redFlags.length` is consistent with `riskLevel` for any string input
+  - [x] 2.4 Write property test — Property 3: caregiverRecommended ↔ High Risk
+    - **Property 3: caregiverRecommended is true if and only if risk is High Risk**
+    - **Validates: Requirements 4.10**
+    - Assert `caregiverRecommended === (riskLevel === 'High Risk')` for any string input
+  - [x] 2.5 Write property test — Property 4: doNow length invariant
+    - **Property 4: doNow list length invariant**
+    - **Validates: Requirements 4.6**
+    - Assert `doNow.length >= 2 && doNow.length <= 4` for any string input
+  - [x] 2.6 Write property test — Property 5: doNotDo length invariant
+    - **Property 5: doNotDo list length invariant**
+    - **Validates: Requirements 4.7**
+    - Assert `doNotDo.length >= 1 && doNotDo.length <= 3` for any string input
+  - [x] 2.7 Write property test — Property 6: safeResponseScript always non-empty
+    - **Property 6: safeResponseScript is always non-empty**
+    - **Validates: Requirements 4.8**
+    - Assert `safeResponseScript.length > 0` for any string input
+  - [x] 2.8 Write property test — Property 7: AnalysisResult JSON round-trip
+    - **Property 7: Analysis result serialization round-trip**
+    - **Validates: Requirements 9.4, 5.11**
+    - Use `fc.string()` to generate inputs, serialize/deserialize result, assert deep equality
+  - [x] 2.9 Write unit tests for `analyzeScamRisk` — concrete examples
+    - Input "buy a gift card" → `redFlags` includes `gift_card`
+    - Input with urgency + secrecy phrases → "High Risk", `caregiverRecommended: true`
+    - Empty string → "Probably Safe", `redFlags` is `[]`
+    - Input "This is the IRS" → `scamType` is `irs_tax`
+    - File: `__tests__/lib/analyzeScamRisk.test.ts`
+    - _Requirements: 4.1–4.11_
+
+- [x] 3. Checkpoint — analysis engine complete
+  - Ensure all analysis engine tests pass. Ask the user if questions arise before continuing.
+
+- [x] 4. Mock services and phone validation
+  - [x] 4.1 Implement `lib/transcribeAudio.ts` — mock transcription service
+    - `export async function transcribeAudio(audioUri: string): Promise<string>`
+    - Return a realistic mock transcript string for any non-empty URI; return `""` for empty URI
+    - _Requirements: 2.4, 2.8_
+  - [x] 4.2 Implement `lib/extractTextFromImage.ts` — mock OCR service
+    - `export async function extractTextFromImage(imageUri: string): Promise<string>`
+    - Return a realistic mock extracted text string for any non-empty URI; return `""` for empty URI
+    - _Requirements: 3.4, 3.8_
+  - [x] 4.3 Implement phone number validation utility in `lib/storage.ts` (or a new `lib/validation.ts`)
+    - `validatePhoneNumber(value: string): { valid: boolean; error?: string }`
+    - Accept standard 10-digit US numbers and E.164 format; reject all other strings
+    - _Requirements: 6.4_
+  - [x] 4.4 Write property test — Property 9: phone number validation rejects invalid formats
+    - **Property 9: Phone number validation rejects invalid formats**
+    - **Validates: Requirements 6.4**
+    - Use `fc.string()` filtered to non-phone strings; assert `valid === false`
+    - Also assert valid E.164 strings pass
+    - File: `__tests__/lib/analyzeScamRisk.property.test.ts` or a dedicated `validation.property.test.ts`
+  - [x] 4.5 Write unit tests for phone validation
+    - `"+15551234567"` passes; `"not-a-phone"` fails with error message
+    - _Requirements: 6.4_
+
+- [x] 5. Global state — React Context and custom hooks
+  - [x] 5.1 Create `AppContext` in `hooks/useAppContext.ts`
+    - Context holds `trustedContact: TrustedContact | null`, `recentResult: AnalysisResult | null`, and their setters
+    - Provider loads initial values from AsyncStorage on mount
+    - _Requirements: 9.3_
+  - [x] 5.2 Implement `hooks/useTrustedContact.ts`
+    - `useTrustedContact()` returns `{ contact, saveContact, clearContact }`
+    - `saveContact` validates phone number before persisting; throws/returns error on invalid
+    - Persists via `lib/storage.ts`
+    - _Requirements: 6.1, 6.2, 6.4, 6.5_
+  - [x] 5.3 Implement `hooks/useRecentResult.ts`
+    - `useRecentResult()` returns `{ result, saveResult }`
+    - Persists via `lib/storage.ts`
+    - _Requirements: 5.11, 1.5_
+  - [x] 5.4 Write property test — Property 8: TrustedContact JSON round-trip
+    - **Property 8: TrustedContact serialization round-trip**
+    - **Validates: Requirements 6.2, 9.4**
+    - Generate arbitrary `TrustedContact`-shaped objects, serialize/deserialize, assert deep equality
+  - [x] 5.5 Write unit tests for `useTrustedContact`
+    - Test save/load round-trip
+    - Test that invalid phone number prevents save
+    - _Requirements: 6.2, 6.4_
+
+- [x] 6. Reusable UI components
+  - [x] 6.1 Implement `components/PrimaryActionButton.tsx`
+    - Large navy button (`Colors.deepNavy`), minimum height `Typography.minTouchTarget` (72px)
+    - Props: `label`, `onPress`, `accessibilityLabel?`, `disabled?`
+    - `accessibilityRole="button"` and `accessibilityLabel` on the touchable
+    - _Requirements: 1.7, 8.1, 8.8_
+  - [x] 6.2 Implement `components/SecondaryActionButton.tsx`
+    - Outlined soft-blue button (`Colors.softBlue`), minimum height 72px
+    - Props: `label`, `onPress`, `accessibilityLabel?`
+    - _Requirements: 1.7, 8.8_
+  - [x] 6.3 Implement `components/DangerActionButton.tsx`
+    - Soft-red button (`Colors.red`), minimum height 72px
+    - Props: `label`, `onPress`, `accessibilityLabel?`
+    - _Requirements: 1.3, 8.8_
+  - [x] 6.4 Implement `components/RiskBadge.tsx`
+    - Color-coded pill: red for "High Risk", amber for "Be Careful", green for "Probably Safe"
+    - Uses `Colors.red`, `Colors.amber`, `Colors.green`
+    - Props: `riskLevel: RiskLevel`
+    - _Requirements: 5.1, 8.3_
+  - [x] 6.5 Implement `components/ResultCard.tsx`
+    - Summary card showing `riskLevel` (via `RiskBadge`) and `inputSummary`
+    - Props: `result: AnalysisResult`, `onPress?`
+    - Tappable when `onPress` provided
+    - _Requirements: 1.5_
+  - [x] 6.6 Implement `components/LargeMicButton.tsx`
+    - Oversized microphone button (minimum 72px, ideally 120px)
+    - Animated visual state change when `isRecording` is true (e.g., pulsing ring or color change)
+    - Props: `isRecording`, `onPress`, `accessibilityLabel?`
+    - _Requirements: 2.1, 2.2, 8.8_
+  - [x] 6.7 Implement `components/TrustedContactCard.tsx`
+    - Displays contact `name` and `relationship`; "Edit" button calls `onEdit`
+    - Props: `contact: TrustedContact`, `onEdit: () => void`
+    - _Requirements: 6.6_
+  - [x] 6.8 Implement `components/SectionCard.tsx`
+    - Labeled card container with a `title` heading and `children` content area
+    - Props: `title: string`, `children: React.ReactNode`
+    - _Requirements: 5.2, 5.3, 5.4, 5.5_
+  - [x] 6.9 Implement `components/ScenarioCard.tsx`
+    - Tappable card showing scenario `title` and `description`; minimum height 72px
+    - Props: `scenario: DemoScenario`, `onPress: (scenario: DemoScenario) => void`
+    - _Requirements: 7.4, 7.5_
+  - [x] 6.10 Write unit tests for `RiskBadge`
+    - Renders correct color for each `RiskLevel` value
+    - File: `__tests__/components/RiskBadge.test.tsx`
+    - _Requirements: 5.1_
+  - [x] 6.11 Write unit tests for `ResultCard`
+    - Renders `inputSummary` and `riskLevel` badge
+    - File: `__tests__/components/ResultCard.test.tsx`
+    - _Requirements: 1.5_
+
+- [x] 7. Checkpoint — components and services complete
+  - Ensure all component and service tests pass. Ask the user if questions arise before continuing.
+
+- [x] 8. App root layout and navigation scaffold
+  - [x] 8.1 Create `app/_layout.tsx` — root layout
+    - Wrap app in `SafeAreaProvider` (react-native-safe-area-context)
+    - Wrap app in `AppContext` provider
+    - Set up Expo Router `<Stack>` with screen options (hide default headers; screens manage their own headers)
+    - _Requirements: 8.7, 9.2_
+  - [x] 8.2 Create stub files for all six routes
+    - `app/index.tsx`, `app/voice-input.tsx`, `app/photo-input.tsx`, `app/results.tsx`, `app/trusted-contact.tsx`, `app/demo-scenarios.tsx`
+    - Each stub renders a `<Text>` placeholder so navigation can be verified before full implementation
+    - _Requirements: 9.1, 9.2_
+
+- [x] 9. Home screen (`app/index.tsx`)
+  - [x] 9.1 Implement the Home screen layout
+    - Reassuring subtitle from `strings.ts` (e.g., "You're safe. Let's check together.")
+    - `PrimaryActionButton` "Tell me what happened" → navigate to `/voice-input`
+    - `SecondaryActionButton` "Show a message or photo" → navigate to `/photo-input`
+    - `DangerActionButton` "Call my trusted person" → `Linking.openURL('tel:...')` with trusted contact number; wrap in try/catch with fallback alert
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.7_
+  - [x] 9.2 Add conditional UI to Home screen
+    - IF `recentResult` exists in context → render `<ResultCard>` that navigates to `/results` on press
+    - IF no `trustedContact` saved → render a prompt directing user to set up a trusted contact (navigates to `/trusted-contact`)
+    - _Requirements: 1.5, 1.6_
+
+- [x] 10. Voice Input screen (`app/voice-input.tsx`)
+  - [x] 10.1 Implement recording flow using expo-audio
+    - Request microphone permission before first recording; show settings guidance if denied
+    - `LargeMicButton` toggles recording start/stop
+    - Visual indicator (from `LargeMicButton` `isRecording` prop) shows listening state
+    - On stop: call `transcribeAudio(audioUri)` and display transcript in a preview text area
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.8_
+  - [x] 10.2 Add Analyze and Cancel actions to Voice Input screen
+    - `PrimaryActionButton` "Analyze" → call `analyzeScamRisk(transcript)`, store result in context, navigate to `/results`
+    - `SecondaryActionButton` "Cancel" → discard recording, navigate back to home
+    - IF transcript is empty → show retry message instead of enabling Analyze
+    - _Requirements: 2.5, 2.6, 2.7_
+
+- [x] 11. Photo Input screen (`app/photo-input.tsx`)
+  - [x] 11.1 Implement image selection using expo-image-picker
+    - Request camera/library permission before launch; show settings guidance if denied
+    - `PrimaryActionButton` "Take a photo" → launch camera
+    - `SecondaryActionButton` "Choose from library" → launch image library
+    - Display image preview after selection
+    - _Requirements: 3.1, 3.2, 3.3, 3.8_
+  - [x] 11.2 Add OCR, Analyze, and Cancel actions to Photo Input screen
+    - On image selected: call `extractTextFromImage(imageUri)` to get extracted text
+    - `PrimaryActionButton` "Analyze" → call `analyzeScamRisk(extractedText)`, store result in context, navigate to `/results`
+    - `SecondaryActionButton` "Cancel" → discard image, navigate back to home
+    - IF extracted text is empty → inform user and prompt to use voice input instead
+    - _Requirements: 3.4, 3.5, 3.6, 3.7_
+
+- [x] 12. Results screen (`app/results.tsx`)
+  - [x] 12.1 Implement Results screen layout
+    - Read `recentResult` from context; if null, redirect to home screen
+    - Display `<RiskBadge riskLevel={result.riskLevel} />` prominently at top
+    - `<SectionCard title="Why this looks suspicious">` listing `redFlags`
+    - `<SectionCard title="What to do now">` listing `doNow` items
+    - `<SectionCard title="What not to do">` listing `doNotDo` items
+    - `<SectionCard title="What to say">` showing `safeResponseScript`
+    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+  - [x] 12.2 Add action buttons and caregiver recommendation to Results screen
+    - `DangerActionButton` "Call my trusted person" → `Linking.openURL('tel:...')` with trusted contact number
+    - `SecondaryActionButton` "Hear this aloud" → call `expo-speech` to read result summary aloud
+    - `SecondaryActionButton` "Start over" → navigate to home screen
+    - IF `caregiverRecommended` is true → display a prominent recommendation banner to contact trusted contact
+    - _Requirements: 5.6, 5.7, 5.8, 5.9, 5.10_
+
+- [x] 13. Trusted Contact Setup screen (`app/trusted-contact.tsx`)
+  - [x] 13.1 Implement Trusted Contact Setup screen
+    - Text inputs for name, phone number, and relationship
+    - IF a contact is already saved → pre-populate fields and show `<TrustedContactCard>`
+    - `PrimaryActionButton` "Save" → call `saveContact()` from `useTrustedContact`; show inline validation error if phone is invalid; on success navigate back to home
+    - Allow updating existing contact at any time
+    - _Requirements: 6.1, 6.2, 6.4, 6.5, 6.6_
+
+- [x] 14. Demo Scenarios screen (`app/demo-scenarios.tsx`)
+  - [x] 14.1 Define the demo scenarios data in `lib/demoScenarios.ts`
+    - At least 5 `DemoScenario` objects covering: bank impersonation, grandparent emergency scam, fake Medicare/government, fake Amazon/package delivery, tech support scam
+    - Each scenario's `scenarioText` must contain patterns that trigger ≥1 red flag (so result is never "Probably Safe")
+    - _Requirements: 7.1, 7.2_
+  - [x] 14.2 Implement Demo Scenarios screen layout
+    - Render a `<ScenarioCard>` for each scenario
+    - On card press: call `analyzeScamRisk(scenario.scenarioText)`, store result in context, navigate to `/results`
+    - _Requirements: 7.3, 7.4, 7.5_
+  - [x] 14.3 Write property test — Property 10: demo scenarios never return "Probably Safe"
+    - **Property 10: Demo scenario analysis produces valid results**
+    - **Validates: Requirements 7.3**
+    - For each scenario in the predefined list, assert `riskLevel !== 'Probably Safe'` and `redFlags.length > 0`
+    - File: `__tests__/lib/analyzeScamRisk.property.test.ts`
+
+- [x] 15. Final checkpoint — full integration
+  - Ensure all automated tests pass (unit + property tests). Verify all six screens are reachable via navigation. Ask the user if questions arise before considering the implementation complete.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for a faster MVP
+- Each task references specific requirements for traceability
+- Property tests use **fast-check** with a minimum of 100 runs each
+- Unit tests use **Jest** (Expo's default test runner)
+- Mock services (`transcribeAudio`, `extractTextFromImage`) are intentional for MVP — they can be swapped for real implementations without changing call sites
+- All user-facing strings live in `constants/strings.ts` — no inline copy in components or screens
+- The analysis engine is a pure function — deterministic, no I/O, safe to test exhaustively

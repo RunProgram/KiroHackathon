@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "TrustPause",
+    "slug": "trustpause",
+    "version": "1.0.0",
+    "scheme": "trustpause",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F4ED"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.trustpause.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "TrustPause needs microphone access to record your voice description of a suspicious situation.",
+        "NSCameraUsageDescription": "TrustPause needs camera access to photograph suspicious messages.",
+        "NSPhotoLibraryUsageDescription": "TrustPause needs photo library access to select images of suspicious messages."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F7F4ED"
+      },
+      "package": "com.trustpause.app",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TrustPause needs access to your photos to analyze suspicious messages.",
+          "cameraPermission": "TrustPause needs camera access to photograph suspicious messages."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
