@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Colors } from '../constants/colors';
 import { Typography } from '../constants/typography';
@@ -25,13 +25,13 @@ export function RiskBadge({ riskLevel }: RiskBadgeProps): React.JSX.Element {
   const backgroundColor = RISK_COLORS[riskLevel];
 
   return (
-    <View
-      style={[styles.badge, { backgroundColor }]}
+    <Text
+      style={[styles.badge, { backgroundColor }, styles.label]}
       accessibilityRole="text"
       accessibilityLabel={`Risk level: ${riskLevel}`}
     >
-      <Text style={styles.label}>{riskLevel}</Text>
-    </View>
+      {riskLevel}
+    </Text>
   );
 }
 

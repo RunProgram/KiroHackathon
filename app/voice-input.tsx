@@ -31,7 +31,6 @@ export default function VoiceInputScreen(): React.JSX.Element {
   const inputYRef = useRef<number>(0);
 
   const [text, setText] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   async function handleAnalyze(): Promise<void> {
     Keyboard.dismiss();
