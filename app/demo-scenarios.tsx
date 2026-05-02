@@ -50,8 +50,6 @@ export default function DemoScenariosScreen(): React.JSX.Element {
         <TouchableOpacity style={styles.back} onPress={() => router.back()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-
-        <Text style={styles.title}>📚 Example Scams</Text>
         <Text style={styles.subtitle}>
           Tap any example to see how TrustPause would analyze it.
         </Text>

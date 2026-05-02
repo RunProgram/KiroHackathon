@@ -206,7 +206,7 @@ export default function ResultsScreen(): React.JSX.Element {
 
           <TouchableOpacity
             style={styles.homeBtn}
-            onPress={() => router.replace('/')}
+            onPress={() => router.back()}
             accessibilityRole="button"
           >
             <Text style={styles.homeBtnText}>← Back to home</Text>
