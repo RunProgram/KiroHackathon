@@ -1,149 +1,44 @@
 /**
- * Voice Input screen — record audio, transcribe, and analyze for scam risk.
- *
- * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8
+ * Voice Input screen — describe what happened in your own words.
  */
 
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-} from 'expo-audio';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Alert,
+  InputAccessoryView,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { LargeMicButton } from '../components/LargeMicButton';
-import { PrimaryActionButton } from '../components/PrimaryActionButton';
-import { SecondaryActionButton } from '../components/SecondaryActionButton';
 import { Colors } from '../constants/colors';
-import { Strings } from '../constants/strings';
-import { Typography } from '../constants/typography';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
-import { transcribeAudio } from '../lib/transcribeAudio';
+
+const INPUT_ACCESSORY_ID = 'voice-input-done';
 
 export default function VoiceInputScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
+  const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const inputYRef = useRef<number>(0);
 
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
-  const [isRecording, setIsRecording] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [noSpeechDetected, setNoSpeechDetected] = useState(false);
-
-  // -------------------------------------------------------------------------
-  // Permission helper
-  // -------------------------------------------------------------------------
-
-  async function requestMicrophonePermission(): Promise<boolean> {
-    const { granted } = await requestRecordingPermissionsAsync();
-
-    if (!granted) {
-      Alert.alert(
-        'Microphone access needed',
-        'TrustPause needs microphone access to record your voice. ' +
-          'Please enable it in your device Settings under Privacy → Microphone.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  // -------------------------------------------------------------------------
-  // Recording toggle
-  // -------------------------------------------------------------------------
-
-  async function handleMicPress(): Promise<void> {
-    if (isRecording) {
-      // Stop recording
-      try {
-        await audioRecorder.stop();
-      } catch {
-        // ignore stop errors — we still want to attempt transcription
-      }
-      setIsRecording(false);
-
-      // Restore audio mode to playback after recording
-      try {
-        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      } catch {
-        // non-critical
-      }
-
-      const audioUri = audioRecorder.uri ?? '';
-
-      setIsTranscribing(true);
-      setNoSpeechDetected(false);
-      try {
-        const result = await transcribeAudio(audioUri);
-        setTranscript(result);
-        if (!result) {
-          setNoSpeechDetected(true);
-        }
-      } catch {
-        setTranscript('');
-        setNoSpeechDetected(true);
-      } finally {
-        setIsTranscribing(false);
-      }
-    } else {
-      // Start recording
-      const permitted = await requestMicrophonePermission();
-      if (!permitted) return;
-
-      try {
-        // Configure audio session for recording (required on iOS)
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-
-        await audioRecorder.prepareToRecordAsync();
-        audioRecorder.record();
-        setIsRecording(true);
-        setTranscript('');
-        setNoSpeechDetected(false);
-      } catch (err) {
-        // Restore audio mode on failure
-        try {
-          await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-        } catch {
-          // ignore
-        }
-        Alert.alert(
-          'Recording error',
-          'Could not start recording. Please try again.',
-          [{ text: 'OK' }],
-        );
-      }
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Analyze action
-  // -------------------------------------------------------------------------
+  const [text, setText] = useState('');
 
   async function handleAnalyze(): Promise<void> {
-    if (!transcript) return;
-
+    Keyboard.dismiss();
+    const trimmed = text.trim();
+    if (!trimmed) return;
     setIsAnalyzing(true);
     try {
-      const result = analyzeScamRisk(transcript);
+      const result = analyzeScamRisk(trimmed);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -151,154 +46,190 @@ export default function VoiceInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Cancel action
-  // -------------------------------------------------------------------------
-
-  function handleCancel(): void {
-    if (isRecording) {
-      audioRecorder.stop().catch(() => {
-        // ignore stop errors on cancel
-      });
-      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
-      setIsRecording(false);
-    }
-    router.back();
-  }
-
-  const analyzeDisabled = !transcript || isTranscribing || isAnalyzing;
+  const canAnalyze = text.trim().length > 0 && !isAnalyzing;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
-        <Text style={styles.title}>{Strings.screenTitles.voiceInput}</Text>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back */}
+          <TouchableOpacity style={styles.back} onPress={() => { Keyboard.dismiss(); router.back(); }}>
+            <Text style={styles.backText}>← Back</Text>
+          </TouchableOpacity>
 
-        <View style={styles.micContainer}>
-          <LargeMicButton
-            isRecording={isRecording}
-            onPress={handleMicPress}
-            accessibilityLabel={
-              isRecording ? 'Stop recording' : 'Start recording'
-            }
-          />
+          {/* Header */}
+          <Text style={styles.title}>🎤 What happened?</Text>
+          <Text style={styles.subtitle}>
+            Describe the call or message in your own words.{'\n'}
+            Don't worry about spelling — just tell us what they said.
+          </Text>
 
-          {isRecording && (
-            <Text style={styles.recordingLabel}>Listening…</Text>
-          )}
-          {isTranscribing && (
-            <Text style={styles.statusLabel}>Transcribing…</Text>
-          )}
-        </View>
-
-        {noSpeechDetected && !isTranscribing ? (
-          <View style={styles.noSpeechContainer}>
-            <Text style={styles.noSpeechText}>
-              {Strings.messages.noSpeechDetected}
-            </Text>
+          {/* Example prompts */}
+          <View style={styles.examples}>
+            <Text style={styles.examplesLabel}>Tap an example to start:</Text>
+            {[
+              'Someone called saying they were from my bank and needed my account number',
+              'I got a text saying my Amazon order was flagged and I need to call immediately',
+              'They said I owed money to the IRS and would be arrested if I didn\'t pay',
+            ].map((ex, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.exampleChip}
+                onPress={() => {
+                  setText(ex);
+                  inputRef.current?.focus();
+                  // Wait for keyboard to animate up, then snap to input
+                  setTimeout(() => {
+                    scrollRef.current?.scrollTo({ y: inputYRef.current - 20, animated: true });
+                  }, 350);
+                }}
+              >
+                <Text style={styles.exampleChipText}>"{ex}"</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        ) : (
+
+          {/* Text input */}
           <TextInput
-            style={styles.transcriptInput}
+            ref={inputRef}
+            style={styles.input}
             multiline
-            editable
-            value={transcript}
-            onChangeText={setTranscript}
-            placeholder="Your transcript will appear here after recording…"
+            value={text}
+            onChangeText={(val) => {
+              setText(val);
+              // Snap scroll to input when user starts typing
+              if (val.length === 1) {
+                setTimeout(() => {
+                  scrollRef.current?.scrollTo({ y: inputYRef.current - 20, animated: true });
+                }, 50);
+              }
+            }}
+            placeholder="Type here what happened…"
             placeholderTextColor={Colors.grayText}
-            accessibilityLabel="Transcript preview"
-            accessibilityHint="Edit the transcript before analyzing"
             textAlignVertical="top"
+            autoCorrect
+            autoCapitalize="sentences"
+            accessibilityLabel="Describe what happened"
+            inputAccessoryViewID={Platform.OS === 'ios' ? INPUT_ACCESSORY_ID : undefined}
+            returnKeyType="default"
+            onLayout={(e) => { inputYRef.current = e.nativeEvent.layout.y; }}
           />
-        )}
 
-        <View style={styles.actionsContainer}>
-          <PrimaryActionButton
-            label={Strings.buttons.analyze}
+          {/* Analyze button */}
+          <TouchableOpacity
+            style={[styles.analyzeBtn, !canAnalyze && styles.analyzeBtnDisabled]}
             onPress={handleAnalyze}
-            disabled={analyzeDisabled}
-            accessibilityLabel="Analyze transcript for scam risk"
-          />
+            disabled={!canAnalyze}
+            accessibilityRole="button"
+          >
+            <Text style={styles.analyzeBtnText}>
+              {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+            </Text>
+          </TouchableOpacity>
 
-          <SecondaryActionButton
-            label={Strings.buttons.cancel}
-            onPress={handleCancel}
-            accessibilityLabel="Cancel and go back"
-          />
-        </View>
-      </ScrollView>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => { Keyboard.dismiss(); router.back(); }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* iOS keyboard toolbar with Done button */}
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={INPUT_ACCESSORY_ID}>
+          <View style={styles.toolbar}>
+            <Text style={styles.toolbarHint}>
+              {text.trim().length > 0 ? `${text.trim().length} characters` : 'Type what happened…'}
+            </Text>
+            <TouchableOpacity
+              style={styles.toolbarDone}
+              onPress={Keyboard.dismiss}
+            >
+              <Text style={styles.toolbarDoneText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-  },
-  scrollContent: {
+  safe: { flex: 1, backgroundColor: Colors.cream },
+  kav: { flex: 1 },
+  scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+    gap: 16,
   },
-  title: {
-    fontSize: Typography.headingSize,
-    fontWeight: '700',
-    color: Colors.darkText,
-    marginBottom: 32,
-    textAlign: 'center',
-  },
-  micContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-    minHeight: 160,
-    justifyContent: 'center',
-  },
-  recordingLabel: {
-    marginTop: 16,
-    fontSize: Typography.bodySize,
-    color: Colors.red,
-    fontWeight: '600',
-  },
-  statusLabel: {
-    marginTop: 16,
-    fontSize: Typography.bodySize,
-    color: Colors.grayText,
-  },
-  transcriptInput: {
+  back: { paddingVertical: 4 },
+  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
+  title: { fontSize: 28, fontWeight: '800', color: Colors.darkText },
+  subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
+  examples: { gap: 8 },
+  examplesLabel: { fontSize: 16, color: Colors.grayText, fontWeight: '600' },
+  exampleChip: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.softBlue,
-    padding: 16,
-    fontSize: Typography.bodySize,
-    color: Colors.darkText,
-    minHeight: 120,
-    lineHeight: Typography.bodySize * 1.5,
-    marginBottom: 32,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  noSpeechContainer: {
+  exampleChipText: { fontSize: 16, color: Colors.softBlue, lineHeight: 22 },
+  input: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.amber,
-    padding: 16,
-    minHeight: 120,
-    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
+    padding: 18,
+    fontSize: 20,
+    color: Colors.darkText,
+    minHeight: 160,
+    lineHeight: 28,
+  },
+  analyzeBtn: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 20,
     alignItems: 'center',
-    marginBottom: 32,
+    minHeight: 72,
+    justifyContent: 'center',
   },
-  noSpeechText: {
-    fontSize: Typography.bodySize,
-    color: Colors.amber,
-    textAlign: 'center',
-    lineHeight: Typography.bodySize * 1.5,
+  analyzeBtnDisabled: { opacity: 0.4 },
+  analyzeBtnText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 12 },
+  cancelBtnText: { fontSize: 18, color: Colors.grayText },
+  toolbar: {
+    backgroundColor: '#F2F2F7',
+    borderTopWidth: 1,
+    borderTopColor: '#C8C8CC',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  actionsContainer: {
-    gap: 16,
+  toolbarHint: { fontSize: 14, color: Colors.grayText },
+  toolbarDone: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
+  toolbarDoneText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });

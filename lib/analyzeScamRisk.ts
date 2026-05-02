@@ -31,7 +31,84 @@ type RedFlagRule = {
 // ---------------------------------------------------------------------------
 
 export const RED_FLAG_RULES: RedFlagRule[] = [
-  // ── High-severity: direct credential / money extraction ──────────────────
+  {
+    flag: 'urgency',
+    patterns: [
+      /act now/i,
+      /immediately/i,
+      /\burgent\b/i,
+      /right away/i,
+      /limited time/i,
+      /expires today/i,
+      /within 24 hours/i,
+      /don't wait/i,
+      /do not wait/i,
+      /time is running out/i,
+      /last chance/i,
+      /deadline/i,
+      /as soon as possible/i,
+      /\basap\b/i,
+      // Natural language additions
+      /right now/i,
+      /today only/i,
+      /must.*today/i,
+      /need.*now/i,
+      /hurry/i,
+      /quick(ly)?/i,
+      /fast/i,
+      /no time/i,
+      /running out/i,
+    ],
+  },
+  {
+    flag: 'secrecy',
+    patterns: [
+      /don'?t tell/i,
+      /keep this secret/i,
+      /don'?t mention/i,
+      /between us/i,
+      /no one else/i,
+      /keep it between/i,
+      /don'?t share/i,
+      /don'?t let anyone know/i,
+      /keep quiet/i,
+      /confidential/i,
+      /don'?t discuss/i,
+      /don'?t talk to/i,
+      /don'?t contact/i,
+      /only talk to me/i,
+      /just between/i,
+    ],
+  },
+  {
+    flag: 'money_transfer',
+    patterns: [
+      /wire transfer/i,
+      /send money/i,
+      /transfer funds/i,
+      /bank transfer/i,
+      /western union/i,
+      /money gram/i,
+      /moneygram/i,
+      /zelle/i,
+      /venmo/i,
+      /cash app/i,
+      /cashapp/i,
+      /cryptocurrency/i,
+      /bitcoin/i,
+      /crypto/i,
+      /send.*funds/i,
+      /transfer.*account/i,
+      // Natural language additions
+      /need.*money/i,
+      /send.*\$\d/i,
+      /\$\d+.*send/i,
+      /pay.*now/i,
+      /payment.*required/i,
+      /owe.*money/i,
+      /money.*owe/i,
+    ],
+  },
   {
     flag: 'gift_card',
     weight: 3,
@@ -156,6 +233,18 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /bank of america/i,
       /wells fargo/i,
       /citibank/i,
+      /i'?m.*with.*bank/i,
+      /i'?m.*from.*bank/i,
+      /this is.*bank/i,
+      /calling from.*bank/i,
+      /\bbank\b.*need/i,
+      /need.*\bbank\b/i,
+      /\bbank\b.*want/i,
+      /from.*\bbank\b/i,
+      /\bbank\b.*call/i,
+      /\bbank\b.*account/i,
+      /account.*number/i,
+      /routing.*number/i,
     ],
   },
   {
@@ -173,6 +262,17 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /package.*delivered/i,
       /delivery.*failed/i,
       /undelivered.*package/i,
+      // Natural language — "I'm from Amazon", "I'm with Amazon", "This is Amazon"
+      /i'?m.*with amazon/i,
+      /i'?m.*from amazon/i,
+      /this is amazon/i,
+      /calling from amazon/i,
+      /amazon.*calling/i,
+      /sophia.*amazon/i,
+      /amazon.*representative/i,
+      /amazon.*support/i,
+      /amazon.*team/i,
+      /amazon.*department/i,
     ],
   },
   {
@@ -188,6 +288,9 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /medicare.*update/i,
       /medicaid.*calling/i,
       /health.*insurance.*representative/i,
+      /i'?m.*with.*medicare/i,
+      /i'?m.*from.*medicare/i,
+      /this is.*medicare/i,
     ],
   },
   {
@@ -205,6 +308,10 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /tax.*penalty/i,
       /tax.*refund/i,
       /federal.*tax/i,
+      /i'?m.*with.*irs/i,
+      /i'?m.*from.*irs/i,
+      /this is.*irs/i,
+      /calling from.*irs/i,
     ],
   },
   {
@@ -223,6 +330,12 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /calling.*fbi/i,
       /government.*official/i,
       /federal.*bureau/i,
+      /i'?m.*with.*government/i,
+      /i'?m.*from.*government/i,
+      /i'?m.*with.*federal/i,
+      /i'?m.*from.*federal/i,
+      /i'?m.*with.*social security/i,
+      /i'?m.*from.*social security/i,
     ],
   },
   {
@@ -363,7 +476,10 @@ function detectScamType(flags: RedFlag[]): ScamType {
 function buildDoNow(flags: RedFlag[]): string[] {
   const items: string[] = [];
 
-  items.push('Hang up or stop responding');
+  // Only recommend hanging up if there are actual red flags
+  if (flags.length > 0) {
+    items.push('Hang up or stop responding');
+  }
 
   if (flags.includes('urgency')) {
     items.push('Take a breath — real emergencies allow time to verify');
@@ -393,7 +509,13 @@ function buildDoNow(flags: RedFlag[]): string[] {
     items.push('Do not send any money or transfer any funds');
   }
 
-  if (items.length < 4) {
+  if (flags.length === 0) {
+    // Probably Safe — reassuring, cautious guidance
+    items.push('You can continue, but stay alert');
+    items.push('Never share personal information or passwords');
+    items.push('If anything feels off, trust your instincts and hang up');
+  } else if (items.length < 4) {
+    // Still room — add trusted person advice
     items.push('Call a trusted family member or friend to talk it over');
   }
 

@@ -1,244 +1,376 @@
 /**
- * Results screen — displays the AnalysisResult from the most recent scam check.
- *
- * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10
+ * Results screen — clear, calm summary of the scam check.
  */
 
 import * as Speech from 'expo-speech';
 import { useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DangerActionButton } from '../components/DangerActionButton';
-import { RiskBadge } from '../components/RiskBadge';
-import { SecondaryActionButton } from '../components/SecondaryActionButton';
-import { SectionCard } from '../components/SectionCard';
 import { Colors } from '../constants/colors';
-import { Strings } from '../constants/strings';
-import { Typography } from '../constants/typography';
 import { useAppContext } from '../hooks/useAppContext';
+
+const RISK_CONFIG = {
+  'High Risk': {
+    bg: '#FDECEA',
+    border: Colors.red,
+    icon: '🚨',
+    headline: 'This looks like a scam',
+    color: Colors.red,
+  },
+  'Be Careful': {
+    bg: '#FFF8E7',
+    border: Colors.amber,
+    icon: '⚠️',
+    headline: 'Be careful — something seems off',
+    color: Colors.amber,
+  },
+  'Probably Safe': {
+    bg: '#EDF7EE',
+    border: Colors.green,
+    icon: '✅',
+    headline: 'This looks probably safe',
+    color: Colors.green,
+  },
+} as const;
+
+const FLAG_LABELS: Record<string, string> = {
+  urgency: 'Creating urgency / pressure',
+  secrecy: 'Asking you to keep it secret',
+  money_transfer: 'Asking for money transfer',
+  gift_card: 'Asking for gift cards',
+  otp_request: 'Asking for a verification code',
+  password_request: 'Asking for your password',
+  ssn_medicare_request: 'Asking for Social Security / Medicare number',
+  remote_access_request: 'Asking to access your computer',
+  impersonation_bank: 'Pretending to be your bank',
+  impersonation_amazon: 'Pretending to be Amazon',
+  impersonation_medicare: 'Pretending to be Medicare',
+  impersonation_irs: 'Pretending to be the IRS',
+  impersonation_government: 'Pretending to be a government agency',
+  impersonation_family: 'Pretending to be a family member',
+  impersonation_police: 'Pretending to be police',
+};
 
 export default function ResultsScreen(): React.JSX.Element {
   const router = useRouter();
   const { recentResult, trustedContact } = useAppContext();
+  const [ready, setReady] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Redirect to home if there is no result to display
   useEffect(() => {
-    if (recentResult === null) {
-      router.replace('/');
-    }
-  }, [recentResult, router]);
+    const t = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(t);
+  }, []);
 
-  // While the redirect is in flight, render nothing to avoid a flash
-  if (recentResult === null) {
+  // Stop speech when leaving screen
+  useEffect(() => {
+    return () => { Speech.stop(); };
+  }, []);
+
+  useEffect(() => {
+    if (ready && recentResult === null) router.replace('/');
+  }, [ready, recentResult, router]);
+
+  if (!ready || recentResult === null) {
     return <View style={styles.empty} />;
   }
 
   const result = recentResult;
+  const config = RISK_CONFIG[result.riskLevel];
 
-  // -------------------------------------------------------------------------
-  // Action handlers
-  // -------------------------------------------------------------------------
-
-  function handleCallTrustedPerson(): void {
-    if (trustedContact === null) {
-      Alert.alert('', Strings.messages.noContactForCall);
+  function handleCall(): void {
+    if (!trustedContact) {
+      Alert.alert('No trusted contact', 'Go to Settings to add one.');
       return;
     }
-    try {
-      Linking.openURL('tel:' + trustedContact.phoneNumber);
-    } catch {
-      Alert.alert('', Strings.messages.callFailed);
+    Linking.openURL('tel:' + trustedContact.phoneNumber).catch(() =>
+      Alert.alert('Could not call', trustedContact.phoneNumber),
+    );
+  }
+
+  async function handleSpeakToggle(): Promise<void> {
+    if (isSpeaking) {
+      await Speech.stop();
+      setIsSpeaking(false);
+      return;
     }
-  }
 
-  function handleHearAloud(): void {
-    const text = result.riskLevel + '. ' + result.doNow.join('. ');
-    Speech.speak(text);
-  }
+    const text =
+      config.headline + '. ' +
+      (result.redFlags.length > 0
+        ? 'Warning signs: ' + result.redFlags.map((f) => FLAG_LABELS[f] ?? f).join(', ') + '. '
+        : '') +
+      'What to do: ' + result.doNow.join('. ') + '. ' +
+      'What to say: ' + result.safeResponseScript;
 
-  function handleStartOver(): void {
-    router.replace('/');
+    setIsSpeaking(true);
+    Speech.speak(text, {
+      rate: 0.85,
+      onDone: () => setIsSpeaking(false),
+      onStopped: () => setIsSpeaking(false),
+      onError: () => setIsSpeaking(false),
+    });
   }
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
+      {/* Pinned top bar — always visible */}
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => { Speech.stop(); router.back(); }}
+          accessibilityRole="button"
+        >
+          <Text style={styles.backBtnText}>← Back</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.speakBtn, isSpeaking && styles.speakBtnActive]}
+          onPress={handleSpeakToggle}
+          accessibilityRole="button"
+          accessibilityLabel={isSpeaking ? 'Stop reading aloud' : 'Read aloud'}
+        >
+          <Text style={styles.speakBtnText}>
+            {isSpeaking ? '⏹ Stop' : '🔊 Read aloud'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Screen title */}
-        <Text style={styles.screenTitle} accessibilityRole="header">
-          {Strings.screenTitles.results}
-        </Text>
-
-        {/* Risk badge — prominent at top */}
-        <View style={styles.badgeContainer}>
-          <RiskBadge riskLevel={result.riskLevel} />
+        {/* Risk banner */}
+        <View style={[styles.riskBanner, { backgroundColor: config.bg, borderColor: config.border }]}>
+          <Text style={styles.riskIcon}>{config.icon}</Text>
+          <Text style={[styles.riskHeadline, { color: config.color }]}>
+            {config.headline}
+          </Text>
+          {result.inputSummary ? (
+            <Text style={styles.riskSummary} numberOfLines={2}>
+              "{result.inputSummary}"
+            </Text>
+          ) : null}
         </View>
 
-        {/* Section: Why this looks suspicious */}
-        <SectionCard title={Strings.sectionHeadings.whyLooksSuspicious}>
-          {result.redFlags.length === 0 ? (
-            <Text style={styles.bodyText}>No specific red flags detected</Text>
-          ) : (
-            result.redFlags.map((flag) => (
-              <Text key={flag} style={styles.bulletText}>
-                {'• '}
-                {flag.replace(/_/g, ' ')}
-              </Text>
-            ))
-          )}
-        </SectionCard>
-
-        {/* Section: What to do now */}
-        <SectionCard title={Strings.sectionHeadings.whatToDoNow}>
-          {result.doNow.map((item, index) => (
-            <Text key={index} style={styles.bulletText}>
-              {'• '}
-              {item}
-            </Text>
-          ))}
-        </SectionCard>
-
-        {/* Section: What not to do */}
-        <SectionCard title={Strings.sectionHeadings.whatNotToDo}>
-          {result.doNotDo.map((item, index) => (
-            <Text key={index} style={styles.bulletText}>
-              {'• '}
-              {item}
-            </Text>
-          ))}
-        </SectionCard>
-
-        {/* Section: Suggestions */}
-        {result.suggestions.length > 0 && (
-          <SectionCard title={Strings.sectionHeadings.suggestions}>
-            {result.suggestions.map((item, index) => (
-              <Text key={index} style={styles.bulletText}>
-                {'• '}
-                {item}
-              </Text>
-            ))}
-          </SectionCard>
-        )}
-
-        {/* Section: Questions to ask */}
-        {result.verificationQuestions.length > 0 && (
-          <SectionCard title={Strings.sectionHeadings.questionsToAsk}>
-            {result.verificationQuestions.map((item, index) => (
-              <Text key={index} style={styles.bulletText}>
-                {'• '}
-                {item}
-              </Text>
-            ))}
-          </SectionCard>
-        )}
-
-        {/* Section: What to say */}
-        <SectionCard title={Strings.sectionHeadings.whatToSay}>
-          <Text style={styles.bodyText}>{result.safeResponseScript}</Text>
-        </SectionCard>
-
-        {/* Caregiver recommendation banner (conditional) */}
+        {/* Caregiver alert */}
         {result.caregiverRecommended && (
-          <View
-            style={styles.caregiverBanner}
-            accessibilityRole="alert"
-            accessibilityLabel={Strings.caregiverRecommendation}
-          >
-            <Text style={styles.caregiverText}>
-              {Strings.caregiverRecommendation}
+          <View style={styles.caregiverAlert}>
+            <Text style={styles.caregiverAlertText}>
+              📣 We strongly recommend calling your trusted person about this right now.
             </Text>
+            <TouchableOpacity
+              style={styles.caregiverCallBtn}
+              onPress={handleCall}
+              accessibilityRole="button"
+            >
+              <Text style={styles.caregiverCallBtnText}>
+                📞 Call {trustedContact?.name ?? 'trusted person'}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Action buttons */}
-        <View style={styles.actionsContainer}>
-          <DangerActionButton
-            label={Strings.buttons.callTrustedPerson}
-            onPress={handleCallTrustedPerson}
-            accessibilityLabel={Strings.buttons.callTrustedPerson}
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.hearThisAloud}
-            onPress={handleHearAloud}
-            accessibilityLabel={Strings.buttons.hearThisAloud}
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.startOver}
-            onPress={handleStartOver}
-            accessibilityLabel={Strings.buttons.startOver}
-          />
+        {/* Warning signs */}
+        {result.redFlags.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>⚠️ Warning signs detected</Text>
+            {result.redFlags.map((flag) => (
+              <View key={flag} style={styles.flagRow}>
+                <Text style={styles.flagDot}>•</Text>
+                <Text style={styles.flagText}>{FLAG_LABELS[flag] ?? flag.replace(/_/g, ' ')}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* What to do */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>✅ What to do now</Text>
+          {result.doNow.map((item, i) => (
+            <View key={i} style={styles.actionRow}>
+              <View style={styles.actionNumber}>
+                <Text style={styles.actionNumberText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.actionText}>{item}</Text>
+            </View>
+          ))}
         </View>
+
+        {/* What NOT to do */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🚫 Do NOT do these</Text>
+          {result.doNotDo.map((item, i) => (
+            <View key={i} style={styles.flagRow}>
+              <Text style={styles.flagDot}>✗</Text>
+              <Text style={styles.flagText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* What to say */}
+        <View style={styles.scriptSection}>
+          <Text style={styles.scriptTitle}>💬 What to say to them</Text>
+          <Text style={styles.scriptText}>"{result.safeResponseScript}"</Text>
+        </View>
+
+        {/* Call button */}
+        {!result.caregiverRecommended && (
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={handleCall}
+            accessibilityRole="button"
+          >
+            <Text style={styles.callBtnText}>
+              📞 Call {trustedContact?.name ?? 'trusted person'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
+  safe: { flex: 1, backgroundColor: Colors.cream },
+  empty: { flex: 1, backgroundColor: Colors.cream },
+
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     backgroundColor: Colors.cream,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
   },
-  scrollView: {
-    flex: 1,
+  backBtn: { paddingVertical: 6, paddingRight: 12 },
+  backBtnText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
+  speakBtn: {
+    backgroundColor: Colors.softBlue,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  scrollContent: {
-    padding: 20,
+  speakBtnActive: {
+    backgroundColor: Colors.red,
+  },
+  speakBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
     gap: 16,
-    paddingBottom: 40,
   },
-  empty: {
-    flex: 1,
-    backgroundColor: Colors.cream,
+
+  riskBanner: {
+    borderRadius: 20,
+    borderWidth: 2,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
   },
-  screenTitle: {
-    color: Colors.darkText,
-    fontSize: Typography.headingSize,
+  riskIcon: { fontSize: 48 },
+  riskHeadline: {
+    fontSize: 26,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 32,
+  },
+  riskSummary: {
+    fontSize: 16,
+    color: Colors.grayText,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+
+  caregiverAlert: {
+    backgroundColor: Colors.red,
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+  },
+  caregiverAlertText: {
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 4,
-  },
-  badgeContainer: {
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  bodyText: {
-    color: Colors.darkText,
-    fontSize: Typography.bodySize,
-    lineHeight: Typography.bodySize * 1.5,
-  },
-  bulletText: {
-    color: Colors.darkText,
-    fontSize: Typography.bodySize,
-    lineHeight: Typography.bodySize * 1.5,
-  },
-  caregiverBanner: {
-    backgroundColor: Colors.amber,
-    borderRadius: 12,
-    padding: 16,
-  },
-  caregiverText: {
-    color: Colors.darkText,
-    fontSize: Typography.bodySize,
-    fontWeight: '700',
+    color: '#FFFFFF',
+    lineHeight: 28,
     textAlign: 'center',
   },
-  actionsContainer: {
-    gap: 12,
-    marginTop: 4,
+  caregiverCallBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
+  caregiverCallBtnText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.red,
+  },
+
+  section: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkText },
+  flagRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  flagDot: { fontSize: 18, color: Colors.red, fontWeight: '700', marginTop: 2 },
+  flagText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
+  actionRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  actionNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.deepNavy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  actionNumberText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  actionText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
+
+  scriptSection: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    padding: 20,
+    gap: 10,
+  },
+  scriptTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  scriptText: { fontSize: 18, color: '#FFFFFF', lineHeight: 28, fontStyle: 'italic' },
+
+  callBtn: {
+    backgroundColor: Colors.red,
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    minHeight: 72,
+    justifyContent: 'center',
+  },
+  callBtnText: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
 });

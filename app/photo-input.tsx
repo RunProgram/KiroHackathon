@@ -1,7 +1,5 @@
 /**
- * Photo Input screen — select or capture an image, run OCR, and analyze for scam risk.
- *
- * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8
+ * Photo Input screen — take or upload a photo, auto-extract text, analyze.
  */
 
 import * as ImagePicker from 'expo-image-picker';
@@ -13,15 +11,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryActionButton } from '../components/PrimaryActionButton';
-import { SecondaryActionButton } from '../components/SecondaryActionButton';
 import { Colors } from '../constants/colors';
-import { Strings } from '../constants/strings';
-import { Typography } from '../constants/typography';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
 import { extractTextFromImage } from '../lib/extractTextFromImage';
@@ -30,133 +25,72 @@ export default function PhotoInputScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
 
-  const [imageUri, setImageUri] = useState<string>('');
-  const [extractedText, setExtractedText] = useState<string>('');
+  const [imageUri, setImageUri] = useState('');
+  const [extractedText, setExtractedText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
+  const [ocrFailed, setOcrFailed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [noTextFound, setNoTextFound] = useState(false);
-
-  // -------------------------------------------------------------------------
-  // Permission helpers
-  // -------------------------------------------------------------------------
-
-  async function requestCameraPermission(): Promise<boolean> {
-    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) {
-      Alert.alert(
-        'Camera access needed',
-        'TrustPause needs camera access to take a photo. ' +
-          'Please enable it in your device Settings under Privacy → Camera.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-    return true;
-  }
-
-  async function requestMediaLibraryPermission(): Promise<boolean> {
-    const { granted } =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-      Alert.alert(
-        'Photo library access needed',
-        'TrustPause needs access to your photo library to choose an image. ' +
-          'Please enable it in your device Settings under Privacy → Photos.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-    return true;
-  }
-
-  // -------------------------------------------------------------------------
-  // OCR helper — called after any image is selected
-  // -------------------------------------------------------------------------
 
   async function runOcr(uri: string): Promise<void> {
     setIsExtracting(true);
-    setNoTextFound(false);
     setExtractedText('');
+    setOcrFailed(false);
     try {
       const text = await extractTextFromImage(uri);
-      setExtractedText(text);
-      if (!text) {
-        setNoTextFound(true);
+      if (text) {
+        setExtractedText(text);
+      } else {
+        setOcrFailed(true);
       }
     } catch {
-      setExtractedText('');
-      setNoTextFound(true);
+      setOcrFailed(true);
     } finally {
       setIsExtracting(false);
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Take a photo
-  // -------------------------------------------------------------------------
-
   async function handleTakePhoto(): Promise<void> {
-    const permitted = await requestCameraPermission();
-    if (!permitted) return;
-
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Camera access needed', 'Please enable it in Settings → Privacy → Camera.');
+      return;
+    }
     try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'images',
-        quality: 0.8,
-      });
-
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.8 });
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
         await runOcr(uri);
       }
     } catch {
-      Alert.alert(
-        'Camera error',
-        'Could not open the camera. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Error', 'Could not open camera. Please try again.');
     }
   }
-
-  // -------------------------------------------------------------------------
-  // Choose from library
-  // -------------------------------------------------------------------------
 
   async function handleChooseFromLibrary(): Promise<void> {
-    const permitted = await requestMediaLibraryPermission();
-    if (!permitted) return;
-
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Photos access needed', 'Please enable it in Settings → Privacy → Photos.');
+      return;
+    }
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
-        quality: 0.8,
-      });
-
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
         await runOcr(uri);
       }
     } catch {
-      Alert.alert(
-        'Library error',
-        'Could not open the photo library. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Error', 'Could not open photo library. Please try again.');
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Analyze action
-  // -------------------------------------------------------------------------
-
   async function handleAnalyze(): Promise<void> {
-    if (!extractedText) return;
-
+    const text = extractedText.trim();
+    if (!text) return;
     setIsAnalyzing(true);
     try {
-      const result = analyzeScamRisk(extractedText);
+      const result = analyzeScamRisk(text);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -164,202 +98,210 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Cancel action
-  // -------------------------------------------------------------------------
-
-  function handleCancel(): void {
-    router.back();
-  }
-
-  // -------------------------------------------------------------------------
-  // Derived state
-  // -------------------------------------------------------------------------
-
-  const analyzeDisabled = !extractedText || isExtracting || isAnalyzing;
-
-  // When an image is selected, show the image-specific action buttons;
-  // otherwise show the camera/library selection buttons.
-  const hasImage = imageUri.length > 0;
+  const canAnalyze = extractedText.trim().length > 0 && !isAnalyzing && !isExtracting;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{Strings.screenTitles.photoInput}</Text>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
 
-        {/* Image preview area */}
-        <View style={styles.previewContainer}>
-          {hasImage ? (
+        <Text style={styles.title}>📷 Show a message</Text>
+        <Text style={styles.subtitle}>
+          Take a photo of a suspicious text, email, or letter. We'll read it and check for scams.
+        </Text>
+
+        {/* Image selection */}
+        <View style={styles.photoButtons}>
+          <TouchableOpacity
+            style={styles.photoBtn}
+            onPress={handleTakePhoto}
+            disabled={isExtracting || isAnalyzing}
+            accessibilityRole="button"
+          >
+            <Text style={styles.photoBtnIcon}>📸</Text>
+            <Text style={styles.photoBtnText}>Take a photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.photoBtn, styles.photoBtnOutline]}
+            onPress={handleChooseFromLibrary}
+            disabled={isExtracting || isAnalyzing}
+            accessibilityRole="button"
+          >
+            <Text style={styles.photoBtnIcon}>🖼️</Text>
+            <Text style={[styles.photoBtnText, styles.photoBtnTextOutline]}>
+              Choose from library
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Image preview */}
+        {imageUri ? (
+          <View style={styles.previewContainer}>
             <Image
               source={{ uri: imageUri }}
-              style={styles.imagePreview}
-              accessibilityLabel="Selected image preview"
-              resizeMode="cover"
+              style={styles.preview}
+              resizeMode="contain"
+              accessibilityLabel="Selected image"
             />
-          ) : (
-            <View style={styles.placeholderContainer}>
-              <Text style={styles.placeholderText}>No image selected</Text>
-            </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>
+              Your photo will appear here
+            </Text>
+          </View>
+        )}
 
-        {/* Image selection buttons — always visible so user can re-select */}
-        <View style={styles.selectionButtons}>
-          <PrimaryActionButton
-            label={Strings.buttons.takePhoto}
-            onPress={handleTakePhoto}
-            accessibilityLabel="Take a photo with the camera"
-            disabled={isExtracting || isAnalyzing}
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.chooseFromLibrary}
-            onPress={handleChooseFromLibrary}
-            accessibilityLabel="Choose an image from the photo library"
-          />
-        </View>
-
-        {/* Extracted text preview */}
+        {/* OCR status */}
         {isExtracting && (
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>Extracting text from image…</Text>
+          <View style={styles.statusBox}>
+            <Text style={styles.statusText}>🔍 Reading text from image…</Text>
+            <Text style={styles.statusSub}>This may take up to 30 seconds</Text>
           </View>
         )}
 
-        {noTextFound && !isExtracting && (
-          <View style={styles.noTextContainer}>
-            <Text style={styles.noTextMessage}>
-              {Strings.messages.noTextInImage}
+        {/* Network warning */}
+        {ocrFailed && !isExtracting && (
+          <View style={styles.warningBox}>
+            <Text style={styles.warningTitle}>⚠️ Could not read text automatically</Text>
+            <Text style={styles.warningText}>
+              This usually happens on restricted WiFi networks.{'\n'}
+              Try switching to cellular data and uploading the photo again.
             </Text>
           </View>
         )}
 
-        {extractedText.length > 0 && !isExtracting && (
-          <View style={styles.extractedTextContainer}>
-            <Text style={styles.extractedTextLabel}>Extracted text:</Text>
-            <Text
-              style={styles.extractedTextContent}
-              accessibilityLabel="Extracted text from image"
-            >
-              {extractedText}
-            </Text>
+        {/* Text found confirmation */}
+        {imageUri && !isExtracting && extractedText ? (
+          <View style={styles.textFoundBox}>
+            <Text style={styles.textFoundLabel}>✅ Text found — ready to check</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Analyze and Cancel buttons */}
-        <View style={styles.actionsContainer}>
-          <PrimaryActionButton
-            label={Strings.buttons.analyze}
+        {/* Analyze */}
+        {imageUri && !isExtracting && (
+          <TouchableOpacity
+            style={[styles.analyzeBtn, !canAnalyze && styles.analyzeBtnDisabled]}
             onPress={handleAnalyze}
-            disabled={analyzeDisabled}
-            accessibilityLabel="Analyze extracted text for scam risk"
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.cancel}
-            onPress={handleCancel}
-            accessibilityLabel="Cancel and go back"
-          />
-        </View>
+            disabled={!canAnalyze}
+            accessibilityRole="button"
+          >
+            <Text style={styles.analyzeBtnText}>
+              {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-  },
-  scrollContent: {
+  safe: { flex: 1, backgroundColor: Colors.cream },
+  scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: Typography.headingSize,
-    fontWeight: '700',
-    color: Colors.darkText,
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  previewContainer: {
-    marginBottom: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.softBlue,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-  },
-  placeholderContainer: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  placeholderText: {
-    fontSize: Typography.bodySize,
-    color: Colors.grayText,
-  },
-  selectionButtons: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  statusContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.softBlue,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  statusText: {
-    fontSize: Typography.bodySize,
-    color: Colors.grayText,
-  },
-  noTextContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.amber,
-    padding: 16,
-    marginBottom: 24,
-  },
-  noTextMessage: {
-    fontSize: Typography.bodySize,
-    color: Colors.amber,
-    textAlign: 'center',
-    lineHeight: Typography.bodySize * 1.5,
-  },
-  extractedTextContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.softBlue,
-    padding: 16,
-    marginBottom: 24,
-  },
-  extractedTextLabel: {
-    fontSize: Typography.captionSize,
-    fontWeight: '600',
-    color: Colors.grayText,
-    marginBottom: 8,
-  },
-  extractedTextContent: {
-    fontSize: Typography.bodySize,
-    color: Colors.darkText,
-    lineHeight: Typography.bodySize * 1.5,
-  },
-  actionsContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
     gap: 16,
   },
+  back: { paddingVertical: 4 },
+  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
+  title: { fontSize: 28, fontWeight: '800', color: Colors.darkText },
+  subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
+  photoButtons: { flexDirection: 'row', gap: 12 },
+  photoBtn: {
+    flex: 1,
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 88,
+    justifyContent: 'center',
+  },
+  photoBtnOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
+  },
+  photoBtnIcon: { fontSize: 28 },
+  photoBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  photoBtnTextOutline: { color: Colors.softBlue },
+  previewContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
+    backgroundColor: '#000',
+  },
+  preview: { width: '100%', height: 240 },
+  placeholder: {
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  placeholderText: { fontSize: 18, color: Colors.grayText },
+  statusBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.softBlue,
+  },
+  statusText: { fontSize: 20, color: Colors.darkText, fontWeight: '600' },
+  statusSub: { fontSize: 15, color: Colors.grayText },
+  warningBox: {
+    backgroundColor: '#FFF8E7',
+    borderRadius: 16,
+    padding: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.amber,
+  },
+  warningTitle: { fontSize: 18, fontWeight: '700', color: Colors.darkText },
+  warningText: { fontSize: 16, color: Colors.grayText, lineHeight: 24 },
+  textFoundBox: {
+    backgroundColor: '#EDF7EE',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.green,
+    alignItems: 'center',
+  },
+  textFoundLabel: { fontSize: 18, fontWeight: '600', color: Colors.darkText },
+  analyzeBtn: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    minHeight: 72,
+    justifyContent: 'center',
+  },
+  analyzeBtnDisabled: { opacity: 0.4 },
+  analyzeBtnText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 12 },
+  cancelBtnText: { fontSize: 18, color: Colors.grayText },
 });

@@ -3,19 +3,42 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TrustedContact, AnalysisResult } from '../types';
 import { STORAGE_KEYS } from '../constants/storage';
 
-/**
- * Persists a TrustedContact to AsyncStorage.
- * Requirements: 6.2, 9.4
- */
+// ---------------------------------------------------------------------------
+// Trusted contacts (array, max 3)
+// ---------------------------------------------------------------------------
+
+export async function saveTrustedContacts(contacts: TrustedContact[]): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEYS.TRUSTED_CONTACTS, JSON.stringify(contacts));
+}
+
+export async function loadTrustedContacts(): Promise<TrustedContact[]> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.TRUSTED_CONTACTS);
+    if (raw === null) {
+      // Migrate legacy single contact if present
+      const legacy = await AsyncStorage.getItem(STORAGE_KEYS.TRUSTED_CONTACT);
+      if (legacy) {
+        const old = JSON.parse(legacy) as Omit<TrustedContact, 'id'>;
+        const migrated: TrustedContact[] = [{ ...old, id: 'legacy-1' }];
+        await saveTrustedContacts(migrated);
+        return migrated;
+      }
+      return [];
+    }
+    return JSON.parse(raw) as TrustedContact[];
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy single contact (kept for backward compat)
+// ---------------------------------------------------------------------------
+
 export async function saveTrustedContact(contact: TrustedContact): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEYS.TRUSTED_CONTACT, JSON.stringify(contact));
 }
 
-/**
- * Loads the saved TrustedContact from AsyncStorage.
- * Returns null if no contact has been saved or if a read error occurs.
- * Requirements: 6.2, 9.4
- */
 export async function loadTrustedContact(): Promise<TrustedContact | null> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.TRUSTED_CONTACT);
