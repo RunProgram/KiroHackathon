@@ -263,7 +263,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
     patterns: [
       /act now/i,
       /immediately/i,
-      /\burgent\b/i,
+      /\burgent(ly)?\b/i,
       /right away/i,
       /limited time/i,
       /expires today/i,
@@ -308,6 +308,7 @@ const CO_OCCURRENCE_BONUSES: Array<{ pair: FlagPair; bonus: number }> = [
   { pair: ['urgency', 'gift_card'], bonus: 2 },
   { pair: ['urgency', 'money_transfer'], bonus: 2 },
   { pair: ['urgency', 'otp_request'], bonus: 2 },
+  { pair: ['urgency', 'secrecy'], bonus: 3 },
   { pair: ['secrecy', 'money_transfer'], bonus: 2 },
   { pair: ['secrecy', 'gift_card'], bonus: 2 },
   { pair: ['impersonation_bank', 'otp_request'], bonus: 2 },
@@ -316,6 +317,8 @@ const CO_OCCURRENCE_BONUSES: Array<{ pair: FlagPair; bonus: number }> = [
   { pair: ['impersonation_government', 'urgency'], bonus: 2 },
   { pair: ['impersonation_family', 'money_transfer'], bonus: 3 },
   { pair: ['impersonation_family', 'gift_card'], bonus: 3 },
+  { pair: ['impersonation_family', 'urgency'], bonus: 3 },
+  { pair: ['impersonation_family', 'secrecy'], bonus: 3 },
   { pair: ['remote_access_request', 'impersonation_bank'], bonus: 2 },
   { pair: ['remote_access_request', 'impersonation_amazon'], bonus: 2 },
 ];
@@ -429,13 +432,16 @@ function buildDoNotDo(flags: RedFlag[]): string[] {
   return items.slice(0, 3);
 }
 
-function buildSafeResponseScript(flags: RedFlag[]): string {
+export function buildSafeResponseScript(flags: RedFlag[]): string {
   if (flags.length === 0) {
     return 'I need to verify this. I will call you back on a number I find myself.';
   }
 
   if (flags.includes('impersonation_family')) {
-    return 'I need to hang up and call my family member directly to make sure they are safe. I will not send any money until I speak with them myself.';
+    if (flags.includes('urgency')) {
+      return "I understand you say it's urgent, but I need to verify who I'm speaking with first. I am going to hang up and call my family member directly on the number I already have. I will not send any money until I have confirmed this with them.";
+    }
+    return 'I need to hang up and call my family member directly on the number I already have for them. I will not send any money or take any action until I have spoken with them myself.';
   }
 
   if (flags.includes('impersonation_irs') || flags.includes('impersonation_government')) {
@@ -451,6 +457,76 @@ function buildSafeResponseScript(flags: RedFlag[]): string {
   }
 
   return 'I need to verify this. I will call you back on a number I find myself.';
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions builder
+// ---------------------------------------------------------------------------
+
+export function buildSuggestions(flags: RedFlag[], riskLevel: RiskLevel): string[] {
+  const items: string[] = [];
+
+  if (flags.includes('impersonation_family')) {
+    items.push(
+      'Call your family member back on the number saved in your phone — not the number that just called you.'
+    );
+  }
+
+  if (flags.includes('gift_card')) {
+    items.push(
+      'No legitimate organization — not the government, not a bank, not a utility — ever asks for payment by gift card.'
+    );
+  }
+
+  if (flags.includes('urgency')) {
+    items.push(
+      'Scammers create urgency on purpose to stop you from thinking clearly. It is always safe to take time to verify.'
+    );
+  }
+
+  if (flags.includes('remote_access_request')) {
+    items.push(
+      'Close the call and do not install any software. Legitimate companies do not need remote access to your device.'
+    );
+  }
+
+  if (flags.includes('otp_request') || flags.includes('password_request')) {
+    items.push(
+      'No legitimate company will ever ask for your password or a one-time code over the phone.'
+    );
+  }
+
+  if (riskLevel === 'High Risk') {
+    items.push('Before doing anything else, call your trusted contact and tell them what happened.');
+  }
+
+  if (riskLevel === 'Probably Safe') {
+    items.push(
+      'This looks okay, but it is always fine to hang up and call back on a number you find yourself.'
+    );
+  }
+
+  // Fallback — always added to guarantee a minimum of 2 items
+  items.push('If something feels wrong, trust that feeling. Hang up and talk to someone you trust.');
+
+  return items.slice(0, 6);
+}
+
+// ---------------------------------------------------------------------------
+// Verification questions builder
+// ---------------------------------------------------------------------------
+
+export function buildVerificationQuestions(flags: RedFlag[]): string[] {
+  if (!flags.includes('impersonation_family')) {
+    return [];
+  }
+
+  return [
+    'What is the name of our family pet?',
+    'What was the name of the street you grew up on?',
+    "What is our family's special word that only we know?",
+    'What did we do together last time we saw each other?',
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +565,8 @@ export function analyzeScamRisk(inputText: string): AnalysisResult {
   const doNow = buildDoNow(detectedFlags);
   const doNotDo = buildDoNotDo(detectedFlags);
   const safeResponseScript = buildSafeResponseScript(detectedFlags);
+  const suggestions = buildSuggestions(detectedFlags, riskLevel);
+  const verificationQuestions = buildVerificationQuestions(detectedFlags);
 
   return {
     riskLevel,
@@ -497,6 +575,8 @@ export function analyzeScamRisk(inputText: string): AnalysisResult {
     doNow,
     doNotDo,
     safeResponseScript,
+    suggestions,
+    verificationQuestions,
     caregiverRecommended,
     analyzedAt: new Date().toISOString(),
     inputSummary: inputText.slice(0, 100),

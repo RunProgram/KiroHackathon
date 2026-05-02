@@ -50,6 +50,8 @@ export const Strings = {
     whyLooksSuspicious: 'Why this looks suspicious',
     whatToDoNow: 'What to do now',
     whatNotToDo: 'What not to do',
+    suggestions: 'Suggestions',
+    questionsToAsk: 'Questions to ask',
     whatToSay: 'What to say',
   },
 

@@ -124,6 +124,30 @@ export default function ResultsScreen(): React.JSX.Element {
           ))}
         </SectionCard>
 
+        {/* Section: Suggestions */}
+        {result.suggestions.length > 0 && (
+          <SectionCard title={Strings.sectionHeadings.suggestions}>
+            {result.suggestions.map((item, index) => (
+              <Text key={index} style={styles.bulletText}>
+                {'• '}
+                {item}
+              </Text>
+            ))}
+          </SectionCard>
+        )}
+
+        {/* Section: Questions to ask */}
+        {result.verificationQuestions.length > 0 && (
+          <SectionCard title={Strings.sectionHeadings.questionsToAsk}>
+            {result.verificationQuestions.map((item, index) => (
+              <Text key={index} style={styles.bulletText}>
+                {'• '}
+                {item}
+              </Text>
+            ))}
+          </SectionCard>
+        )}
+
         {/* Section: What to say */}
         <SectionCard title={Strings.sectionHeadings.whatToSay}>
           <Text style={styles.bodyText}>{result.safeResponseScript}</Text>

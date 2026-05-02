@@ -32,12 +32,14 @@ export interface AnalysisResult {
   riskLevel: RiskLevel;
   scamType: ScamType;
   redFlags: RedFlag[];
-  doNow: string[];          // 2–4 plain-language recommended actions
-  doNotDo: string[];        // 1–3 plain-language actions to avoid
+  doNow: string[];                  // 2–4 plain-language recommended actions
+  doNotDo: string[];                // 1–3 plain-language actions to avoid
   safeResponseScript: string;
+  suggestions: string[];            // Proactive tips tailored to the situation
+  verificationQuestions: string[];  // Questions to ask to verify the caller's identity
   caregiverRecommended: boolean;
-  analyzedAt: string;       // ISO timestamp
-  inputSummary: string;     // first 100 chars of input, for display
+  analyzedAt: string;               // ISO timestamp
+  inputSummary: string;             // first 100 chars of input, for display
 }
 
 export interface TrustedContact {
