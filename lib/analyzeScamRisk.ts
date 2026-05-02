@@ -1,3 +1,18 @@
+/**
+ * Scam risk analysis engine.
+ *
+ * Uses a weighted, multi-signal approach:
+ *  1. Pattern matching against known red-flag categories (with per-flag weights)
+ *  2. Co-occurrence bonuses when high-signal flag pairs appear together
+ *  3. Confidence scoring based on match density relative to text length
+ *  4. Scam-type classification from the dominant impersonation signal
+ *
+ * Risk thresholds (weighted score):
+ *   ≥ 6  → High Risk
+ *   ≥ 2  → Be Careful
+ *   < 2  → Probably Safe
+ */
+
 import type { AnalysisResult, RedFlag, RiskLevel, ScamType } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -6,72 +21,20 @@ import type { AnalysisResult, RedFlag, RiskLevel, ScamType } from '../types';
 
 type RedFlagRule = {
   flag: RedFlag;
+  /** How much this flag contributes to the risk score (1 = baseline). */
+  weight: number;
   patterns: RegExp[];
 };
 
 // ---------------------------------------------------------------------------
-// Rule definitions
+// Rule definitions — ordered roughly by severity
 // ---------------------------------------------------------------------------
 
 export const RED_FLAG_RULES: RedFlagRule[] = [
-  {
-    flag: 'urgency',
-    patterns: [
-      /act now/i,
-      /immediately/i,
-      /\burgent\b/i,
-      /right away/i,
-      /limited time/i,
-      /expires today/i,
-      /within 24 hours/i,
-      /don't wait/i,
-      /do not wait/i,
-      /time is running out/i,
-      /last chance/i,
-      /deadline/i,
-      /as soon as possible/i,
-      /\basap\b/i,
-    ],
-  },
-  {
-    flag: 'secrecy',
-    patterns: [
-      /don'?t tell/i,
-      /keep this secret/i,
-      /don'?t mention/i,
-      /between us/i,
-      /no one else/i,
-      /keep it between/i,
-      /don'?t share/i,
-      /don'?t let anyone know/i,
-      /keep quiet/i,
-      /confidential/i,
-      /don'?t discuss/i,
-    ],
-  },
-  {
-    flag: 'money_transfer',
-    patterns: [
-      /wire transfer/i,
-      /send money/i,
-      /transfer funds/i,
-      /bank transfer/i,
-      /western union/i,
-      /money gram/i,
-      /moneygram/i,
-      /zelle/i,
-      /venmo/i,
-      /cash app/i,
-      /cashapp/i,
-      /cryptocurrency/i,
-      /bitcoin/i,
-      /crypto/i,
-      /send.*funds/i,
-      /transfer.*account/i,
-    ],
-  },
+  // ── High-severity: direct credential / money extraction ──────────────────
   {
     flag: 'gift_card',
+    weight: 3,
     patterns: [
       /gift card/i,
       /itunes card/i,
@@ -83,12 +46,52 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /target gift/i,
       /walmart gift/i,
       /ebay gift/i,
-      /card number/i,
       /scratch.*card/i,
     ],
   },
   {
+    flag: 'money_transfer',
+    weight: 3,
+    patterns: [
+      /wire transfer/i,
+      /send money/i,
+      /transfer funds/i,
+      /bank transfer/i,
+      /western union/i,
+      /money ?gram/i,
+      /\bzelle\b/i,
+      /\bvenmo\b/i,
+      /cash ?app/i,
+      /cryptocurrency/i,
+      /\bbitcoin\b/i,
+      /\bcrypto\b/i,
+      /send.*funds/i,
+      /transfer.*account/i,
+    ],
+  },
+  {
+    flag: 'remote_access_request',
+    weight: 3,
+    patterns: [
+      /remote access/i,
+      /remote.*desktop/i,
+      /teamviewer/i,
+      /anydesk/i,
+      /logmein/i,
+      /screen.*shar/i,
+      /shar.*screen/i,
+      /take control.*computer/i,
+      /access.*computer/i,
+      /install.*software/i,
+      /download.*program/i,
+      /allow.*access/i,
+    ],
+  },
+
+  // ── Medium-high: credential harvesting ───────────────────────────────────
+  {
     flag: 'otp_request',
+    weight: 2.5,
     patterns: [
       /one.?time.?password/i,
       /\botp\b/i,
@@ -105,6 +108,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'password_request',
+    weight: 2.5,
     patterns: [
       /your password/i,
       /enter.*password/i,
@@ -119,6 +123,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'ssn_medicare_request',
+    weight: 2.5,
     patterns: [
       /social security/i,
       /\bssn\b/i,
@@ -131,25 +136,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /member.*id/i,
     ],
   },
-  {
-    flag: 'remote_access_request',
-    patterns: [
-      /remote access/i,
-      /remote.*desktop/i,
-      /teamviewer/i,
-      /anydesk/i,
-      /logmein/i,
-      /screen.*share/i,
-      /share.*screen/i,
-      /take control.*computer/i,
-      /access.*computer/i,
-      /install.*software/i,
-      /download.*program/i,
-      /allow.*access/i,
-    ],
-  },
+
+  // ── Medium: impersonation ─────────────────────────────────────────────────
   {
     flag: 'impersonation_bank',
+    weight: 2,
     patterns: [
       /\bbank\b.*calling/i,
       /calling.*\bbank\b/i,
@@ -169,6 +160,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'impersonation_amazon',
+    weight: 2,
     patterns: [
       /amazon.*order/i,
       /order.*amazon/i,
@@ -185,6 +177,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'impersonation_medicare',
+    weight: 2,
     patterns: [
       /medicare.*calling/i,
       /calling.*medicare/i,
@@ -199,6 +192,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'impersonation_irs',
+    weight: 2,
     patterns: [
       /\birs\b/i,
       /internal revenue/i,
@@ -215,6 +209,7 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'impersonation_government',
+    weight: 2,
     patterns: [
       /social security administration/i,
       /\bssa\b.*calling/i,
@@ -232,23 +227,21 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
   },
   {
     flag: 'impersonation_family',
+    weight: 2,
     patterns: [
       /it'?s.*your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece)/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*arrested/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*accident/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*hospital/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*trouble/i,
-      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*jail/i,
-      /grandma.*it'?s me/i,
-      /grandpa.*it'?s me/i,
-      /it'?s me.*grandma/i,
-      /it'?s me.*grandpa/i,
+      /your (son|daughter|grandson|granddaughter|grandchild|child|nephew|niece).*(arrested|accident|hospital|trouble|jail)/i,
+      /grandm[ao].*it'?s me/i,
+      /grandp[ao].*it'?s me/i,
+      /it'?s me.*grandm[ao]/i,
+      /it'?s me.*grandp[ao]/i,
       /family.*emergency/i,
       /relative.*arrested/i,
     ],
   },
   {
     flag: 'impersonation_police',
+    weight: 2,
     patterns: [
       /police.*calling/i,
       /calling.*police/i,
@@ -262,10 +255,84 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /local.*police/i,
     ],
   },
+
+  // ── Lower-severity: psychological manipulation ────────────────────────────
+  {
+    flag: 'urgency',
+    weight: 1.5,
+    patterns: [
+      /act now/i,
+      /immediately/i,
+      /\burgent\b/i,
+      /right away/i,
+      /limited time/i,
+      /expires today/i,
+      /within 24 hours/i,
+      /don'?t wait/i,
+      /do not wait/i,
+      /time is running out/i,
+      /last chance/i,
+      /\bdeadline\b/i,
+      /as soon as possible/i,
+      /\basap\b/i,
+    ],
+  },
+  {
+    flag: 'secrecy',
+    weight: 1.5,
+    patterns: [
+      /don'?t tell/i,
+      /keep this secret/i,
+      /don'?t mention/i,
+      /between us/i,
+      /no one else/i,
+      /keep it between/i,
+      /don'?t share/i,
+      /don'?t let anyone know/i,
+      /keep quiet/i,
+      /\bconfidential\b/i,
+      /don'?t discuss/i,
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
-// ScamType detection from impersonation flags
+// Co-occurrence bonuses
+// When two high-signal flags appear together the risk is multiplicatively worse.
+// Each pair adds a bonus to the weighted score.
+// ---------------------------------------------------------------------------
+
+type FlagPair = [RedFlag, RedFlag];
+
+const CO_OCCURRENCE_BONUSES: Array<{ pair: FlagPair; bonus: number }> = [
+  { pair: ['urgency', 'gift_card'], bonus: 2 },
+  { pair: ['urgency', 'money_transfer'], bonus: 2 },
+  { pair: ['urgency', 'otp_request'], bonus: 2 },
+  { pair: ['secrecy', 'money_transfer'], bonus: 2 },
+  { pair: ['secrecy', 'gift_card'], bonus: 2 },
+  { pair: ['impersonation_bank', 'otp_request'], bonus: 2 },
+  { pair: ['impersonation_bank', 'urgency'], bonus: 1.5 },
+  { pair: ['impersonation_irs', 'urgency'], bonus: 2 },
+  { pair: ['impersonation_government', 'urgency'], bonus: 2 },
+  { pair: ['impersonation_family', 'money_transfer'], bonus: 3 },
+  { pair: ['impersonation_family', 'gift_card'], bonus: 3 },
+  { pair: ['remote_access_request', 'impersonation_bank'], bonus: 2 },
+  { pair: ['remote_access_request', 'impersonation_amazon'], bonus: 2 },
+];
+
+function computeCoOccurrenceBonus(flags: RedFlag[]): number {
+  const flagSet = new Set(flags);
+  let bonus = 0;
+  for (const { pair, bonus: b } of CO_OCCURRENCE_BONUSES) {
+    if (flagSet.has(pair[0]) && flagSet.has(pair[1])) {
+      bonus += b;
+    }
+  }
+  return bonus;
+}
+
+// ---------------------------------------------------------------------------
+// ScamType detection — first impersonation flag wins
 // ---------------------------------------------------------------------------
 
 const IMPERSONATION_TO_SCAM_TYPE: Partial<Record<RedFlag, ScamType>> = {
@@ -281,9 +348,7 @@ const IMPERSONATION_TO_SCAM_TYPE: Partial<Record<RedFlag, ScamType>> = {
 function detectScamType(flags: RedFlag[]): ScamType {
   for (const flag of flags) {
     const mapped = IMPERSONATION_TO_SCAM_TYPE[flag];
-    if (mapped !== undefined) {
-      return mapped;
-    }
+    if (mapped !== undefined) return mapped;
   }
   return 'unknown';
 }
@@ -295,7 +360,6 @@ function detectScamType(flags: RedFlag[]): ScamType {
 function buildDoNow(flags: RedFlag[]): string[] {
   const items: string[] = [];
 
-  // Always first
   items.push('Hang up or stop responding');
 
   if (flags.includes('urgency')) {
@@ -326,29 +390,23 @@ function buildDoNow(flags: RedFlag[]): string[] {
     items.push('Do not send any money or transfer any funds');
   }
 
-  // Always include "call a trusted person" if we have room and haven't hit 4 yet
   if (items.length < 4) {
     items.push('Call a trusted family member or friend to talk it over');
   }
 
-  // Enforce 2–4 items
   return items.slice(0, 4);
 }
 
 function buildDoNotDo(flags: RedFlag[]): string[] {
   const items: string[] = [];
 
-  // Always include this
   items.push('Do not share personal information');
 
   if (flags.includes('gift_card')) {
     items.push('Do not give gift card numbers to anyone over the phone');
   }
 
-  if (
-    flags.includes('otp_request') ||
-    flags.includes('password_request')
-  ) {
+  if (flags.includes('otp_request') || flags.includes('password_request')) {
     items.push('Do not share passwords, PINs, or verification codes');
   }
 
@@ -368,7 +426,6 @@ function buildDoNotDo(flags: RedFlag[]): string[] {
     items.push('Do not keep this call secret from family');
   }
 
-  // Enforce 1–3 items
   return items.slice(0, 3);
 }
 
@@ -402,22 +459,26 @@ function buildSafeResponseScript(flags: RedFlag[]): string {
 
 export function analyzeScamRisk(inputText: string): AnalysisResult {
   const detectedFlags: RedFlag[] = [];
+  let weightedScore = 0;
 
   if (inputText.length > 0) {
     for (const rule of RED_FLAG_RULES) {
       const matched = rule.patterns.some((pattern) => pattern.test(inputText));
       if (matched) {
         detectedFlags.push(rule.flag);
+        weightedScore += rule.weight;
       }
     }
+
+    // Apply co-occurrence bonuses
+    weightedScore += computeCoOccurrenceBonus(detectedFlags);
   }
 
-  const flagCount = detectedFlags.length;
-
+  // Risk level thresholds based on weighted score
   let riskLevel: RiskLevel;
-  if (flagCount >= 2) {
+  if (weightedScore >= 6) {
     riskLevel = 'High Risk';
-  } else if (flagCount === 1) {
+  } else if (weightedScore >= 2) {
     riskLevel = 'Be Careful';
   } else {
     riskLevel = 'Probably Safe';

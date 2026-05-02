@@ -7,6 +7,7 @@
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
+  setAudioModeAsync,
   useAudioRecorder,
 } from 'expo-audio';
 import { useRouter } from 'expo-router';
@@ -35,8 +36,6 @@ export default function VoiceInputScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
 
-  // expo-audio recorder hook — uses HIGH_QUALITY preset
-  // Note: AudioModule.requestRecordingPermissionsAsync() is the expo-audio API.
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -71,8 +70,20 @@ export default function VoiceInputScreen(): React.JSX.Element {
 
   async function handleMicPress(): Promise<void> {
     if (isRecording) {
-      await audioRecorder.stop();
+      // Stop recording
+      try {
+        await audioRecorder.stop();
+      } catch {
+        // ignore stop errors — we still want to attempt transcription
+      }
       setIsRecording(false);
+
+      // Restore audio mode to playback after recording
+      try {
+        await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      } catch {
+        // non-critical
+      }
 
       const audioUri = audioRecorder.uri ?? '';
 
@@ -91,16 +102,29 @@ export default function VoiceInputScreen(): React.JSX.Element {
         setIsTranscribing(false);
       }
     } else {
+      // Start recording
       const permitted = await requestMicrophonePermission();
       if (!permitted) return;
 
       try {
+        // Configure audio session for recording (required on iOS)
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+        });
+
         await audioRecorder.prepareToRecordAsync();
         audioRecorder.record();
         setIsRecording(true);
         setTranscript('');
         setNoSpeechDetected(false);
-      } catch {
+      } catch (err) {
+        // Restore audio mode on failure
+        try {
+          await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+        } catch {
+          // ignore
+        }
         Alert.alert(
           'Recording error',
           'Could not start recording. Please try again.',
@@ -136,6 +160,7 @@ export default function VoiceInputScreen(): React.JSX.Element {
       audioRecorder.stop().catch(() => {
         // ignore stop errors on cancel
       });
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
       setIsRecording(false);
     }
     router.back();
