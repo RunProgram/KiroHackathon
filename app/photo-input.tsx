@@ -1,5 +1,5 @@
 /**
- * Photo Input screen — select or capture an image, run OCR, and analyze for scam risk.
+ * Photo Input screen — select or capture an image, auto-extract text via OCR, analyze.
  *
  * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8
  */
@@ -34,121 +34,91 @@ export default function PhotoInputScreen(): React.JSX.Element {
   const [imageUri, setImageUri] = useState<string>('');
   const [extractedText, setExtractedText] = useState<string>('');
   const [isExtracting, setIsExtracting] = useState(false);
+  const [ocrFailed, setOcrFailed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // -------------------------------------------------------------------------
-  // Permission helpers
+  // Run OCR after image selected
   // -------------------------------------------------------------------------
 
-  async function requestCameraPermission(): Promise<boolean> {
-    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) {
-      Alert.alert(
-        'Camera access needed',
-        'TrustPause needs camera access to take a photo. ' +
-          'Please enable it in your device Settings under Privacy → Camera.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-    return true;
-  }
-
-  async function requestMediaLibraryPermission(): Promise<boolean> {
-    const { granted } =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-      Alert.alert(
-        'Photo library access needed',
-        'TrustPause needs access to your photo library. ' +
-          'Please enable it in Settings → Privacy → Photos.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-    return true;
-  }
-
-  // Run real OCR on the selected image, then let user edit the result
   async function runOcr(uri: string): Promise<void> {
     setIsExtracting(true);
     setExtractedText('');
+    setOcrFailed(false);
     try {
       const text = await extractTextFromImage(uri);
-      setExtractedText(text);
+      if (text) {
+        setExtractedText(text);
+        setOcrFailed(false);
+      } else {
+        setOcrFailed(true);
+      }
     } catch {
-      setExtractedText('');
+      setOcrFailed(true);
     } finally {
       setIsExtracting(false);
     }
   }
 
   // -------------------------------------------------------------------------
-  // Take a photo
+  // Camera
   // -------------------------------------------------------------------------
 
   async function handleTakePhoto(): Promise<void> {
-    const permitted = await requestCameraPermission();
-    if (!permitted) return;
-
+    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Camera access needed', 'Please enable it in Settings → Privacy → Camera.');
+      return;
+    }
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: 'images',
         quality: 0.8,
       });
-
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
         await runOcr(uri);
       }
     } catch {
-      Alert.alert(
-        'Camera error',
-        'Could not open the camera. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Error', 'Could not open camera. Please try again.');
     }
   }
 
   // -------------------------------------------------------------------------
-  // Choose from library
+  // Photo library
   // -------------------------------------------------------------------------
 
   async function handleChooseFromLibrary(): Promise<void> {
-    const permitted = await requestMediaLibraryPermission();
-    if (!permitted) return;
-
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Photos access needed', 'Please enable it in Settings → Privacy → Photos.');
+      return;
+    }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'images',
         quality: 0.8,
       });
-
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
         await runOcr(uri);
       }
     } catch {
-      Alert.alert(
-        'Library error',
-        'Could not open the photo library. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Error', 'Could not open photo library. Please try again.');
     }
   }
 
   // -------------------------------------------------------------------------
-  // Analyze action
+  // Analyze
   // -------------------------------------------------------------------------
 
   async function handleAnalyze(): Promise<void> {
-    if (!extractedText.trim()) return;
-
+    const text = extractedText.trim();
+    if (!text) return;
     setIsAnalyzing(true);
     try {
-      const text = extractedText.trim();
       const result = analyzeScamRisk(text);
       console.log('[TrustPause] Photo analyzing:', text.slice(0, 80));
       console.log('[TrustPause] Result:', result.riskLevel, result.redFlags);
@@ -159,23 +129,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Cancel action
-  // -------------------------------------------------------------------------
-
-  function handleCancel(): void {
-    router.back();
-  }
-
-  // -------------------------------------------------------------------------
-  // Derived state
-  // -------------------------------------------------------------------------
-
-  const analyzeDisabled = !extractedText.trim() || isExtracting || isAnalyzing;
-
-  // When an image is selected, show the image-specific action buttons;
-  // otherwise show the camera/library selection buttons.
-  const hasImage = imageUri.length > 0;
+  const analyzeDisabled = !extractedText.trim() || isAnalyzing || isExtracting;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -186,75 +140,88 @@ export default function PhotoInputScreen(): React.JSX.Element {
       >
         <Text style={styles.title}>{Strings.screenTitles.photoInput}</Text>
 
-        {/* Image preview area */}
-        <View style={styles.previewContainer}>
-          {hasImage ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.imagePreview}
-              accessibilityLabel="Selected image preview"
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.placeholderContainer}>
-              <Text style={styles.placeholderText}>No image selected</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Image selection buttons — always visible so user can re-select */}
+        {/* Image selection */}
         <View style={styles.selectionButtons}>
           <PrimaryActionButton
             label={Strings.buttons.takePhoto}
             onPress={handleTakePhoto}
-            accessibilityLabel="Take a photo with the camera"
             disabled={isExtracting || isAnalyzing}
           />
           <SecondaryActionButton
             label={Strings.buttons.chooseFromLibrary}
             onPress={handleChooseFromLibrary}
-            accessibilityLabel="Choose an image from the photo library"
           />
         </View>
 
-        {isExtracting && (
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>Reading text from image…</Text>
+        {/* Image preview */}
+        {imageUri ? (
+          <View style={styles.previewContainer}>
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.imagePreview}
+              resizeMode="contain"
+              accessibilityLabel="Selected image"
+            />
+          </View>
+        ) : (
+          <View style={styles.placeholderContainer}>
+            <Text style={styles.placeholderText}>
+              📷 Take a photo or choose from your library
+            </Text>
           </View>
         )}
 
-        {/* Extracted text — editable so user can type/correct what the image says */}
-        {hasImage && !isExtracting && (
-          <View style={styles.extractedTextContainer}>
-            <Text style={styles.extractedTextLabel}>
-              What does the message say? (edit if needed)
+        {/* OCR status */}
+        {isExtracting && (
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusText}>🔍 Reading text from image…</Text>
+          </View>
+        )}
+
+        {/* Network error message */}
+        {ocrFailed && !isExtracting && (
+          <View style={styles.networkWarning}>
+            <Text style={styles.networkWarningText}>
+              ⚠️ Could not read text automatically — network may be blocking the request.
+              {'\n'}Switch to cellular data, or type the message below.
+            </Text>
+          </View>
+        )}
+
+        {/* Extracted text — editable so user can correct OCR errors */}
+        {imageUri && !isExtracting && (
+          <View style={styles.textSection}>
+            <Text style={styles.textLabel}>
+              {extractedText
+                ? '✅ Text detected — edit if needed:'
+                : 'Type the message text here:'}
             </Text>
             <TextInput
-              style={styles.extractedTextInput}
+              style={styles.textInput}
               multiline
               value={extractedText}
               onChangeText={setExtractedText}
-              placeholder="Type the text from the image here…"
+              placeholder={'Type what the message says…'}
               placeholderTextColor={Colors.grayText}
-              accessibilityLabel="Text from image"
+              accessibilityLabel="Message text"
               textAlignVertical="top"
               autoCorrect={false}
             />
           </View>
         )}
 
-        {/* Analyze and Cancel buttons */}
+        {/* Actions */}
         <View style={styles.actionsContainer}>
-          <PrimaryActionButton
-            label={Strings.buttons.analyze}
-            onPress={handleAnalyze}
-            disabled={analyzeDisabled}
-            accessibilityLabel="Analyze extracted text for scam risk"
-          />
+          {imageUri && !isExtracting && (
+            <PrimaryActionButton
+              label={isAnalyzing ? 'Analyzing…' : Strings.buttons.analyze}
+              onPress={handleAnalyze}
+              disabled={analyzeDisabled}
+            />
+          )}
           <SecondaryActionButton
             label={Strings.buttons.cancel}
-            onPress={handleCancel}
-            accessibilityLabel="Cancel and go back"
+            onPress={() => router.back()}
           />
         </View>
       </ScrollView>
@@ -272,40 +239,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 32,
     paddingBottom: 40,
+    gap: 20,
   },
   title: {
     fontSize: Typography.headingSize,
     fontWeight: '700',
     color: Colors.darkText,
-    marginBottom: 24,
     textAlign: 'center',
   },
+  selectionButtons: {
+    gap: 12,
+  },
   previewContainer: {
-    marginBottom: 24,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.softBlue,
+    backgroundColor: '#000',
   },
   imagePreview: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
+    height: 220,
   },
   placeholderContainer: {
-    width: '100%',
-    height: 200,
-    backgroundColor: '#FFFFFF',
+    height: 100,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.softBlue,
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   placeholderText: {
     fontSize: Typography.bodySize,
     color: Colors.grayText,
-  },
-  selectionButtons: {
-    gap: 12,
-    marginBottom: 24,
+    textAlign: 'center',
+    paddingHorizontal: 16,
   },
   statusContainer: {
     backgroundColor: '#FFFFFF',
@@ -314,48 +284,43 @@ const styles = StyleSheet.create({
     borderColor: Colors.softBlue,
     padding: 16,
     alignItems: 'center',
-    marginBottom: 24,
   },
   statusText: {
     fontSize: Typography.bodySize,
     color: Colors.grayText,
   },
-  noTextContainer: {
-    backgroundColor: '#FFFFFF',
+  networkWarning: {
+    backgroundColor: '#FFF8E7',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.amber,
     padding: 16,
-    marginBottom: 24,
   },
-  noTextMessage: {
+  networkWarningText: {
+    fontSize: Typography.captionSize,
+    color: Colors.darkText,
+    lineHeight: Typography.captionSize * 1.6,
+  },
+  textSection: {
+    gap: 8,
+  },
+  textLabel: {
     fontSize: Typography.bodySize,
-    color: Colors.amber,
-    textAlign: 'center',
-    lineHeight: Typography.bodySize * 1.5,
+    fontWeight: '600',
+    color: Colors.darkText,
   },
-  extractedTextContainer: {
+  textInput: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.softBlue,
     padding: 16,
-    marginBottom: 24,
-  },
-  extractedTextLabel: {
-    fontSize: Typography.captionSize,
-    fontWeight: '600',
-    color: Colors.grayText,
-    marginBottom: 8,
-  },
-  extractedTextInput: {
     fontSize: Typography.bodySize,
     color: Colors.darkText,
+    minHeight: 140,
     lineHeight: Typography.bodySize * 1.5,
-    minHeight: 120,
-    textAlignVertical: 'top',
   },
   actionsContainer: {
-    gap: 16,
+    gap: 12,
   },
 });

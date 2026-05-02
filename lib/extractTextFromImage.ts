@@ -1,33 +1,52 @@
 /**
  * OCR service using OCR.space free API.
- * Works in Expo Go without a native build.
+ * NOTE: Requires internet access. Will not work on restricted networks
+ * (e.g. hackathon WiFi that blocks outbound API calls).
+ * Switch to cellular data if OCR times out.
  *
  * Requirements: 3.4, 3.8
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 
-// Free OCR.space API key (public demo key — rate limited but works for demos)
 const OCR_API_KEY = 'K81940498488957';
 const OCR_API_URL = 'https://api.ocr.space/parse/image';
+const TIMEOUT_MS = 30000; // 30s — generous for slow connections
 
-/**
- * Extracts text from an image using OCR.space API.
- * Falls back to empty string on any error.
- */
 export async function extractTextFromImage(imageUri: string): Promise<string> {
   if (!imageUri) return '';
 
   try {
-    // Convert local file URI to base64 for upload
-    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+    console.log('[OCR] Compressing image...');
+
+    // Compress aggressively — target ~60KB base64
+    const compressed = await ImageManipulator.manipulateAsync(
+      imageUri,
+      [{ resize: { width: 800 } }],
+      { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
+    );
+
+    const base64 = await FileSystem.readAsStringAsync(compressed.uri, {
       encoding: 'base64',
     });
+    console.log('[OCR] Compressed size:', base64.length, 'chars');
 
-    // Determine mime type from URI extension
-    const ext = imageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-    const base64Image = `data:${mimeType};base64,${base64}`;
+    // If still large, compress harder
+    let finalBase64 = base64;
+    if (base64.length > 150000) {
+      const compressed2 = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: { width: 500 } }],
+        { compress: 0.3, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      finalBase64 = await FileSystem.readAsStringAsync(compressed2.uri, {
+        encoding: 'base64',
+      });
+      console.log('[OCR] Re-compressed size:', finalBase64.length, 'chars');
+    }
+
+    const base64Image = `data:image/jpeg;base64,${finalBase64}`;
 
     const formData = new FormData();
     formData.append('base64Image', base64Image);
@@ -35,15 +54,29 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
     formData.append('isOverlayRequired', 'false');
     formData.append('detectOrientation', 'true');
     formData.append('scale', 'true');
-    formData.append('OCREngine', '2'); // Engine 2 is better for screenshots
+    formData.append('OCREngine', '2');
 
-    const response = await fetch(OCR_API_URL, {
-      method: 'POST',
-      headers: {
-        apikey: OCR_API_KEY,
-      },
-      body: formData,
-    });
+    console.log('[OCR] Sending to API...');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn('[OCR] Timed out — try switching to cellular data');
+    }, TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(OCR_API_URL, {
+        method: 'POST',
+        headers: { apikey: OCR_API_KEY },
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    console.log('[OCR] Response status:', response.status);
 
     if (!response.ok) {
       console.warn('[OCR] API error:', response.status);
@@ -53,7 +86,7 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
     const data = await response.json() as {
       ParsedResults?: Array<{ ParsedText: string }>;
       IsErroredOnProcessing?: boolean;
-      ErrorMessage?: string;
+      ErrorMessage?: string | string[];
     };
 
     if (data.IsErroredOnProcessing) {
@@ -62,10 +95,15 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
     }
 
     const text = data.ParsedResults?.[0]?.ParsedText ?? '';
-    console.log('[OCR] Extracted:', text.slice(0, 100));
+    console.log('[OCR] Extracted:', text.slice(0, 150));
     return text.trim();
-  } catch (err) {
-    console.warn('[OCR] Failed:', err);
+
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.warn('[OCR] Timed out — network may be blocking API calls');
+    } else {
+      console.warn('[OCR] Failed:', err);
+    }
     return '';
   }
 }
