@@ -15,7 +15,10 @@ export type RedFlag =
   | 'impersonation_irs'
   | 'impersonation_government'
   | 'impersonation_family'
-  | 'impersonation_police';
+  | 'impersonation_police'
+  | 'impersonation_tech_support'
+  | 'lottery_prize_scam'
+  | 'romance_scam';
 
 export type ScamType =
   | 'bank_impersonation'
