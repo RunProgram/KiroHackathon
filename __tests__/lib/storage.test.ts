@@ -29,6 +29,8 @@ const sampleResult: AnalysisResult = {
   doNow: ['Hang up immediately', 'Call your bank directly'],
   doNotDo: ['Do not give out your account number'],
   safeResponseScript: 'I need to verify this with my bank. I will call them directly.',
+  suggestions: [],
+  verificationQuestions: [],
   caregiverRecommended: true,
   analyzedAt: '2024-01-01T00:00:00.000Z',
   inputSummary: 'This is the bank calling about suspicious activity on your account.',
