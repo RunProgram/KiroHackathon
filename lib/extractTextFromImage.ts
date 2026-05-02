@@ -1,30 +1,71 @@
 /**
- * Mock OCR (optical character recognition) service.
- *
- * In the MVP, this returns a realistic pre-written extracted text string for
- * any non-empty image URI. It can be swapped for a real OCR implementation
- * (e.g., Google Cloud Vision, AWS Textract, or an on-device ML model) without
- * changing any call sites.
+ * OCR service using OCR.space free API.
+ * Works in Expo Go without a native build.
  *
  * Requirements: 3.4, 3.8
  */
 
-const MOCK_EXTRACTED_TEXT =
-  "URGENT: Your Amazon account has been compromised. " +
-  "Call 1-800-555-0123 immediately to verify your account and prevent " +
-  "unauthorized charges. Failure to act within 24 hours will result in " +
-  "permanent account suspension.";
+import * as FileSystem from 'expo-file-system/legacy';
+
+// Free OCR.space API key (public demo key — rate limited but works for demos)
+const OCR_API_KEY = 'K81940498488957';
+const OCR_API_URL = 'https://api.ocr.space/parse/image';
 
 /**
- * Extracts text from an image identified by `imageUri`.
- *
- * @param imageUri - The local URI of the image file (photo or screenshot).
- * @returns A promise that resolves to the extracted text string, or an empty
- *          string if `imageUri` is empty (indicating no image was provided).
+ * Extracts text from an image using OCR.space API.
+ * Falls back to empty string on any error.
  */
 export async function extractTextFromImage(imageUri: string): Promise<string> {
-  if (!imageUri) {
-    return "";
+  if (!imageUri) return '';
+
+  try {
+    // Convert local file URI to base64 for upload
+    const base64 = await FileSystem.readAsStringAsync(imageUri, {
+      encoding: 'base64',
+    });
+
+    // Determine mime type from URI extension
+    const ext = imageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const base64Image = `data:${mimeType};base64,${base64}`;
+
+    const formData = new FormData();
+    formData.append('base64Image', base64Image);
+    formData.append('language', 'eng');
+    formData.append('isOverlayRequired', 'false');
+    formData.append('detectOrientation', 'true');
+    formData.append('scale', 'true');
+    formData.append('OCREngine', '2'); // Engine 2 is better for screenshots
+
+    const response = await fetch(OCR_API_URL, {
+      method: 'POST',
+      headers: {
+        apikey: OCR_API_KEY,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      console.warn('[OCR] API error:', response.status);
+      return '';
+    }
+
+    const data = await response.json() as {
+      ParsedResults?: Array<{ ParsedText: string }>;
+      IsErroredOnProcessing?: boolean;
+      ErrorMessage?: string;
+    };
+
+    if (data.IsErroredOnProcessing) {
+      console.warn('[OCR] Processing error:', data.ErrorMessage);
+      return '';
+    }
+
+    const text = data.ParsedResults?.[0]?.ParsedText ?? '';
+    console.log('[OCR] Extracted:', text.slice(0, 100));
+    return text.trim();
+  } catch (err) {
+    console.warn('[OCR] Failed:', err);
+    return '';
   }
-  return MOCK_EXTRACTED_TEXT;
 }

@@ -30,15 +30,20 @@ export default function ResultsScreen(): React.JSX.Element {
   const router = useRouter();
   const { recentResult, trustedContact } = useAppContext();
 
-  // Redirect to home if there is no result to display
+  // Give context 300ms to hydrate from AsyncStorage before redirecting
+  const [ready, setReady] = React.useState(false);
   useEffect(() => {
-    if (recentResult === null) {
+    const t = setTimeout(() => setReady(true), 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (ready && recentResult === null) {
       router.replace('/');
     }
-  }, [recentResult, router]);
+  }, [ready, recentResult, router]);
 
-  // While the redirect is in flight, render nothing to avoid a flash
-  if (recentResult === null) {
+  if (!ready || recentResult === null) {
     return <View style={styles.empty} />;
   }
 

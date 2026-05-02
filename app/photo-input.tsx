@@ -13,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,7 +35,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
   const [extractedText, setExtractedText] = useState<string>('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [noTextFound, setNoTextFound] = useState(false);
 
   // -------------------------------------------------------------------------
   // Permission helpers
@@ -60,8 +60,8 @@ export default function PhotoInputScreen(): React.JSX.Element {
     if (!granted) {
       Alert.alert(
         'Photo library access needed',
-        'TrustPause needs access to your photo library to choose an image. ' +
-          'Please enable it in your device Settings under Privacy → Photos.',
+        'TrustPause needs access to your photo library. ' +
+          'Please enable it in Settings → Privacy → Photos.',
         [{ text: 'OK' }],
       );
       return false;
@@ -69,23 +69,15 @@ export default function PhotoInputScreen(): React.JSX.Element {
     return true;
   }
 
-  // -------------------------------------------------------------------------
-  // OCR helper — called after any image is selected
-  // -------------------------------------------------------------------------
-
+  // Run real OCR on the selected image, then let user edit the result
   async function runOcr(uri: string): Promise<void> {
     setIsExtracting(true);
-    setNoTextFound(false);
     setExtractedText('');
     try {
       const text = await extractTextFromImage(uri);
       setExtractedText(text);
-      if (!text) {
-        setNoTextFound(true);
-      }
     } catch {
       setExtractedText('');
-      setNoTextFound(true);
     } finally {
       setIsExtracting(false);
     }
@@ -152,11 +144,14 @@ export default function PhotoInputScreen(): React.JSX.Element {
   // -------------------------------------------------------------------------
 
   async function handleAnalyze(): Promise<void> {
-    if (!extractedText) return;
+    if (!extractedText.trim()) return;
 
     setIsAnalyzing(true);
     try {
-      const result = analyzeScamRisk(extractedText);
+      const text = extractedText.trim();
+      const result = analyzeScamRisk(text);
+      console.log('[TrustPause] Photo analyzing:', text.slice(0, 80));
+      console.log('[TrustPause] Result:', result.riskLevel, result.redFlags);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -176,7 +171,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
   // Derived state
   // -------------------------------------------------------------------------
 
-  const analyzeDisabled = !extractedText || isExtracting || isAnalyzing;
+  const analyzeDisabled = !extractedText.trim() || isExtracting || isAnalyzing;
 
   // When an image is selected, show the image-specific action buttons;
   // otherwise show the camera/library selection buttons.
@@ -222,30 +217,29 @@ export default function PhotoInputScreen(): React.JSX.Element {
           />
         </View>
 
-        {/* Extracted text preview */}
         {isExtracting && (
           <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>Extracting text from image…</Text>
+            <Text style={styles.statusText}>Reading text from image…</Text>
           </View>
         )}
 
-        {noTextFound && !isExtracting && (
-          <View style={styles.noTextContainer}>
-            <Text style={styles.noTextMessage}>
-              {Strings.messages.noTextInImage}
-            </Text>
-          </View>
-        )}
-
-        {extractedText.length > 0 && !isExtracting && (
+        {/* Extracted text — editable so user can type/correct what the image says */}
+        {hasImage && !isExtracting && (
           <View style={styles.extractedTextContainer}>
-            <Text style={styles.extractedTextLabel}>Extracted text:</Text>
-            <Text
-              style={styles.extractedTextContent}
-              accessibilityLabel="Extracted text from image"
-            >
-              {extractedText}
+            <Text style={styles.extractedTextLabel}>
+              What does the message say? (edit if needed)
             </Text>
+            <TextInput
+              style={styles.extractedTextInput}
+              multiline
+              value={extractedText}
+              onChangeText={setExtractedText}
+              placeholder="Type the text from the image here…"
+              placeholderTextColor={Colors.grayText}
+              accessibilityLabel="Text from image"
+              textAlignVertical="top"
+              autoCorrect={false}
+            />
           </View>
         )}
 
@@ -354,10 +348,12 @@ const styles = StyleSheet.create({
     color: Colors.grayText,
     marginBottom: 8,
   },
-  extractedTextContent: {
+  extractedTextInput: {
     fontSize: Typography.bodySize,
     color: Colors.darkText,
     lineHeight: Typography.bodySize * 1.5,
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
   actionsContainer: {
     gap: 16,

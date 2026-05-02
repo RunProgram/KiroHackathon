@@ -1,16 +1,15 @@
 /**
- * Voice Input screen — record audio, transcribe, and analyze for scam risk.
+ * Voice Input screen.
  *
- * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8
+ * Speech recognition requires a native dev build (not available in Expo Go).
+ * This screen provides a large text input so users can type what happened,
+ * with the mic button showing a clear message about the limitation.
+ *
+ * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
  */
 
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  useAudioRecorder,
-} from 'expo-audio';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -29,97 +28,40 @@ import { Strings } from '../constants/strings';
 import { Typography } from '../constants/typography';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
-import { transcribeAudio } from '../lib/transcribeAudio';
 
 export default function VoiceInputScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
+  const inputRef = useRef<TextInput>(null);
 
-  // expo-audio recorder hook — uses HIGH_QUALITY preset
-  // Note: AudioModule.requestRecordingPermissionsAsync() is the expo-audio API.
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
-  const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [noSpeechDetected, setNoSpeechDetected] = useState(false);
 
   // -------------------------------------------------------------------------
-  // Permission helper
+  // Mic button — focuses the text input and explains to type
   // -------------------------------------------------------------------------
 
-  async function requestMicrophonePermission(): Promise<boolean> {
-    const { granted } = await requestRecordingPermissionsAsync();
-
-    if (!granted) {
-      Alert.alert(
-        'Microphone access needed',
-        'TrustPause needs microphone access to record your voice. ' +
-          'Please enable it in your device Settings under Privacy → Microphone.',
-        [{ text: 'OK' }],
-      );
-      return false;
-    }
-
-    return true;
+  function handleMicPress(): void {
+    inputRef.current?.focus();
+    Alert.alert(
+      'Type what happened',
+      'Describe the suspicious call or message in your own words below, then tap Analyze.',
+      [{ text: 'OK' }],
+    );
   }
 
   // -------------------------------------------------------------------------
-  // Recording toggle
-  // -------------------------------------------------------------------------
-
-  async function handleMicPress(): Promise<void> {
-    if (isRecording) {
-      await audioRecorder.stop();
-      setIsRecording(false);
-
-      const audioUri = audioRecorder.uri ?? '';
-
-      setIsTranscribing(true);
-      setNoSpeechDetected(false);
-      try {
-        const result = await transcribeAudio(audioUri);
-        setTranscript(result);
-        if (!result) {
-          setNoSpeechDetected(true);
-        }
-      } catch {
-        setTranscript('');
-        setNoSpeechDetected(true);
-      } finally {
-        setIsTranscribing(false);
-      }
-    } else {
-      const permitted = await requestMicrophonePermission();
-      if (!permitted) return;
-
-      try {
-        await audioRecorder.prepareToRecordAsync();
-        audioRecorder.record();
-        setIsRecording(true);
-        setTranscript('');
-        setNoSpeechDetected(false);
-      } catch {
-        Alert.alert(
-          'Recording error',
-          'Could not start recording. Please try again.',
-          [{ text: 'OK' }],
-        );
-      }
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Analyze action
+  // Analyze
   // -------------------------------------------------------------------------
 
   async function handleAnalyze(): Promise<void> {
-    if (!transcript) return;
-
+    const text = transcript.trim();
+    if (!text) return;
     setIsAnalyzing(true);
     try {
-      const result = analyzeScamRisk(transcript);
+      const result = analyzeScamRisk(text);
+      console.log('[TrustPause] Analyzing:', text.slice(0, 80));
+      console.log('[TrustPause] Result:', result.riskLevel, result.redFlags);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -128,20 +70,14 @@ export default function VoiceInputScreen(): React.JSX.Element {
   }
 
   // -------------------------------------------------------------------------
-  // Cancel action
+  // Cancel
   // -------------------------------------------------------------------------
 
   function handleCancel(): void {
-    if (isRecording) {
-      audioRecorder.stop().catch(() => {
-        // ignore stop errors on cancel
-      });
-      setIsRecording(false);
-    }
     router.back();
   }
 
-  const analyzeDisabled = !transcript || isTranscribing || isAnalyzing;
+  const analyzeDisabled = !transcript.trim() || isAnalyzing;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -152,56 +88,47 @@ export default function VoiceInputScreen(): React.JSX.Element {
       >
         <Text style={styles.title}>{Strings.screenTitles.voiceInput}</Text>
 
+        <Text style={styles.instructions}>
+          Describe what happened in your own words. What did they say? What did they ask for?
+        </Text>
+
+        {/* Mic button */}
         <View style={styles.micContainer}>
           <LargeMicButton
-            isRecording={isRecording}
+            isRecording={false}
             onPress={handleMicPress}
-            accessibilityLabel={
-              isRecording ? 'Stop recording' : 'Start recording'
-            }
+            accessibilityLabel="Tap to get instructions for describing what happened"
           />
-
-          {isRecording && (
-            <Text style={styles.recordingLabel}>Listening…</Text>
-          )}
-          {isTranscribing && (
-            <Text style={styles.statusLabel}>Transcribing…</Text>
-          )}
+          <Text style={styles.micHint}>Tap mic or type below</Text>
         </View>
 
-        {noSpeechDetected && !isTranscribing ? (
-          <View style={styles.noSpeechContainer}>
-            <Text style={styles.noSpeechText}>
-              {Strings.messages.noSpeechDetected}
-            </Text>
-          </View>
-        ) : (
-          <TextInput
-            style={styles.transcriptInput}
-            multiline
-            editable
-            value={transcript}
-            onChangeText={setTranscript}
-            placeholder="Your transcript will appear here after recording…"
-            placeholderTextColor={Colors.grayText}
-            accessibilityLabel="Transcript preview"
-            accessibilityHint="Edit the transcript before analyzing"
-            textAlignVertical="top"
-          />
-        )}
+        {/* Text input */}
+        <TextInput
+          ref={inputRef}
+          style={styles.transcriptInput}
+          multiline
+          value={transcript}
+          onChangeText={setTranscript}
+          placeholder={
+            'Example: "Someone called saying they were from my bank and needed my account number immediately…"'
+          }
+          placeholderTextColor={Colors.grayText}
+          accessibilityLabel="Describe what happened"
+          textAlignVertical="top"
+          autoCorrect
+          autoCapitalize="sentences"
+        />
 
+        {/* Actions */}
         <View style={styles.actionsContainer}>
           <PrimaryActionButton
-            label={Strings.buttons.analyze}
+            label={isAnalyzing ? 'Analyzing…' : Strings.buttons.analyze}
             onPress={handleAnalyze}
             disabled={analyzeDisabled}
-            accessibilityLabel="Analyze transcript for scam risk"
           />
-
           <SecondaryActionButton
             label={Strings.buttons.cancel}
             onPress={handleCancel}
-            accessibilityLabel="Cancel and go back"
           />
         </View>
       </ScrollView>
@@ -224,24 +151,23 @@ const styles = StyleSheet.create({
     fontSize: Typography.headingSize,
     fontWeight: '700',
     color: Colors.darkText,
-    marginBottom: 32,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  instructions: {
+    fontSize: Typography.bodySize,
+    color: Colors.grayText,
+    textAlign: 'center',
+    lineHeight: Typography.bodySize * 1.5,
+    marginBottom: 32,
   },
   micContainer: {
     alignItems: 'center',
-    marginBottom: 32,
-    minHeight: 160,
-    justifyContent: 'center',
+    marginBottom: 24,
   },
-  recordingLabel: {
-    marginTop: 16,
-    fontSize: Typography.bodySize,
-    color: Colors.red,
-    fontWeight: '600',
-  },
-  statusLabel: {
-    marginTop: 16,
-    fontSize: Typography.bodySize,
+  micHint: {
+    marginTop: 12,
+    fontSize: Typography.captionSize,
     color: Colors.grayText,
   },
   transcriptInput: {
@@ -252,26 +178,9 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: Typography.bodySize,
     color: Colors.darkText,
-    minHeight: 120,
+    minHeight: 160,
     lineHeight: Typography.bodySize * 1.5,
     marginBottom: 32,
-  },
-  noSpeechContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.amber,
-    padding: 16,
-    minHeight: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  noSpeechText: {
-    fontSize: Typography.bodySize,
-    color: Colors.amber,
-    textAlign: 'center',
-    lineHeight: Typography.bodySize * 1.5,
   },
   actionsContainer: {
     gap: 16,
