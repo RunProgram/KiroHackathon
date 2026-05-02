@@ -1,31 +1,20 @@
 /**
- * Voice Input screen.
- *
- * Speech recognition requires a native dev build (not available in Expo Go).
- * This screen provides a large text input so users can type what happened,
- * with the mic button showing a clear message about the limitation.
- *
- * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7
+ * Voice Input screen — describe what happened in your own words.
  */
 
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LargeMicButton } from '../components/LargeMicButton';
-import { PrimaryActionButton } from '../components/PrimaryActionButton';
-import { SecondaryActionButton } from '../components/SecondaryActionButton';
 import { Colors } from '../constants/colors';
-import { Strings } from '../constants/strings';
-import { Typography } from '../constants/typography';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
 
@@ -34,34 +23,15 @@ export default function VoiceInputScreen(): React.JSX.Element {
   const { saveResult } = useRecentResult();
   const inputRef = useRef<TextInput>(null);
 
-  const [transcript, setTranscript] = useState('');
+  const [text, setText] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // -------------------------------------------------------------------------
-  // Mic button — focuses the text input and explains to type
-  // -------------------------------------------------------------------------
-
-  function handleMicPress(): void {
-    inputRef.current?.focus();
-    Alert.alert(
-      'Type what happened',
-      'Describe the suspicious call or message in your own words below, then tap Analyze.',
-      [{ text: 'OK' }],
-    );
-  }
-
-  // -------------------------------------------------------------------------
-  // Analyze
-  // -------------------------------------------------------------------------
-
   async function handleAnalyze(): Promise<void> {
-    const text = transcript.trim();
-    if (!text) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
     setIsAnalyzing(true);
     try {
-      const result = analyzeScamRisk(text);
-      console.log('[TrustPause] Analyzing:', text.slice(0, 80));
-      console.log('[TrustPause] Result:', result.riskLevel, result.redFlags);
+      const result = analyzeScamRisk(trimmed);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -69,120 +39,163 @@ export default function VoiceInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Cancel
-  // -------------------------------------------------------------------------
-
-  function handleCancel(): void {
-    router.back();
-  }
-
-  const analyzeDisabled = !transcript.trim() || isAnalyzing;
+  const canAnalyze = text.trim().length > 0 && !isAnalyzing;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{Strings.screenTitles.voiceInput}</Text>
+        {/* Back */}
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
 
-        <Text style={styles.instructions}>
-          Describe what happened in your own words. What did they say? What did they ask for?
+        {/* Header */}
+        <Text style={styles.title}>🎤 What happened?</Text>
+        <Text style={styles.subtitle}>
+          Describe the call or message in your own words.{'\n'}
+          Don't worry about spelling — just tell us what they said.
         </Text>
 
-        {/* Mic button */}
-        <View style={styles.micContainer}>
-          <LargeMicButton
-            isRecording={false}
-            onPress={handleMicPress}
-            accessibilityLabel="Tap to get instructions for describing what happened"
-          />
-          <Text style={styles.micHint}>Tap mic or type below</Text>
+        {/* Example prompts */}
+        <View style={styles.examples}>
+          <Text style={styles.examplesLabel}>For example:</Text>
+          {[
+            '"Someone called saying they were from my bank…"',
+            '"I got a text saying my Amazon order was flagged…"',
+            '"They said I owed money to the IRS…"',
+          ].map((ex, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.exampleChip}
+              onPress={() => {
+                setText(ex.replace(/"/g, ''));
+                inputRef.current?.focus();
+              }}
+            >
+              <Text style={styles.exampleChipText}>{ex}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Text input */}
         <TextInput
           ref={inputRef}
-          style={styles.transcriptInput}
+          style={styles.input}
           multiline
-          value={transcript}
-          onChangeText={setTranscript}
-          placeholder={
-            'Example: "Someone called saying they were from my bank and needed my account number immediately…"'
-          }
+          value={text}
+          onChangeText={setText}
+          placeholder="Type here what happened…"
           placeholderTextColor={Colors.grayText}
-          accessibilityLabel="Describe what happened"
           textAlignVertical="top"
           autoCorrect
           autoCapitalize="sentences"
+          accessibilityLabel="Describe what happened"
         />
 
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          <PrimaryActionButton
-            label={isAnalyzing ? 'Analyzing…' : Strings.buttons.analyze}
-            onPress={handleAnalyze}
-            disabled={analyzeDisabled}
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.cancel}
-            onPress={handleCancel}
-          />
-        </View>
+        {/* Analyze button */}
+        <TouchableOpacity
+          style={[styles.analyzeBtn, !canAnalyze && styles.analyzeBtnDisabled]}
+          onPress={handleAnalyze}
+          disabled={!canAnalyze}
+          accessibilityRole="button"
+          accessibilityLabel="Check if this is a scam"
+        >
+          <Text style={styles.analyzeBtnText}>
+            {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-  },
-  scrollContent: {
+  safe: { flex: 1, backgroundColor: Colors.cream },
+  scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
+    gap: 16,
   },
+  back: { paddingVertical: 4 },
+  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
   title: {
-    fontSize: Typography.headingSize,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: Colors.darkText,
-    marginBottom: 8,
-    textAlign: 'center',
   },
-  instructions: {
-    fontSize: Typography.bodySize,
+  subtitle: {
+    fontSize: 18,
     color: Colors.grayText,
-    textAlign: 'center',
-    lineHeight: Typography.bodySize * 1.5,
-    marginBottom: 32,
+    lineHeight: 26,
   },
-  micContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
+  examples: {
+    gap: 8,
   },
-  micHint: {
-    marginTop: 12,
-    fontSize: Typography.captionSize,
+  examplesLabel: {
+    fontSize: 16,
     color: Colors.grayText,
+    fontWeight: '600',
   },
-  transcriptInput: {
+  exampleChip: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.softBlue,
-    padding: 16,
-    fontSize: Typography.bodySize,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  exampleChipText: {
+    fontSize: 16,
+    color: Colors.softBlue,
+    lineHeight: 22,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
+    padding: 18,
+    fontSize: 20,
     color: Colors.darkText,
     minHeight: 160,
-    lineHeight: Typography.bodySize * 1.5,
-    marginBottom: 32,
+    lineHeight: 28,
   },
-  actionsContainer: {
-    gap: 16,
+  analyzeBtn: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    minHeight: 72,
+    justifyContent: 'center',
+  },
+  analyzeBtnDisabled: {
+    opacity: 0.4,
+  },
+  analyzeBtnText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  cancelBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  cancelBtnText: {
+    fontSize: 18,
+    color: Colors.grayText,
   },
 });

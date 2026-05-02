@@ -1,7 +1,5 @@
 /**
- * Photo Input screen — select or capture an image, auto-extract text via OCR, analyze.
- *
- * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8
+ * Photo Input screen — take or upload a photo, auto-extract text, analyze.
  */
 
 import * as ImagePicker from 'expo-image-picker';
@@ -14,15 +12,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryActionButton } from '../components/PrimaryActionButton';
-import { SecondaryActionButton } from '../components/SecondaryActionButton';
 import { Colors } from '../constants/colors';
-import { Strings } from '../constants/strings';
-import { Typography } from '../constants/typography';
 import { useRecentResult } from '../hooks/useRecentResult';
 import { analyzeScamRisk } from '../lib/analyzeScamRisk';
 import { extractTextFromImage } from '../lib/extractTextFromImage';
@@ -31,15 +26,11 @@ export default function PhotoInputScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
 
-  const [imageUri, setImageUri] = useState<string>('');
-  const [extractedText, setExtractedText] = useState<string>('');
+  const [imageUri, setImageUri] = useState('');
+  const [extractedText, setExtractedText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [ocrFailed, setOcrFailed] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // -------------------------------------------------------------------------
-  // Run OCR after image selected
-  // -------------------------------------------------------------------------
 
   async function runOcr(uri: string): Promise<void> {
     setIsExtracting(true);
@@ -49,7 +40,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
       const text = await extractTextFromImage(uri);
       if (text) {
         setExtractedText(text);
-        setOcrFailed(false);
       } else {
         setOcrFailed(true);
       }
@@ -60,10 +50,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Camera
-  // -------------------------------------------------------------------------
-
   async function handleTakePhoto(): Promise<void> {
     const { granted } = await ImagePicker.requestCameraPermissionsAsync();
     if (!granted) {
@@ -71,10 +57,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
       return;
     }
     try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'images',
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', quality: 0.8 });
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
@@ -85,10 +68,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Photo library
-  // -------------------------------------------------------------------------
-
   async function handleChooseFromLibrary(): Promise<void> {
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!granted) {
@@ -96,10 +75,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
       return;
     }
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'images',
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', quality: 0.8 });
       if (!result.canceled && result.assets.length > 0) {
         const uri = result.assets[0].uri;
         setImageUri(uri);
@@ -110,18 +86,12 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Analyze
-  // -------------------------------------------------------------------------
-
   async function handleAnalyze(): Promise<void> {
     const text = extractedText.trim();
     if (!text) return;
     setIsAnalyzing(true);
     try {
       const result = analyzeScamRisk(text);
-      console.log('[TrustPause] Photo analyzing:', text.slice(0, 80));
-      console.log('[TrustPause] Result:', result.riskLevel, result.redFlags);
       await saveResult(result);
       router.push('/results');
     } finally {
@@ -129,28 +99,47 @@ export default function PhotoInputScreen(): React.JSX.Element {
     }
   }
 
-  const analyzeDisabled = !extractedText.trim() || isAnalyzing || isExtracting;
+  const canAnalyze = extractedText.trim().length > 0 && !isAnalyzing && !isExtracting;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>{Strings.screenTitles.photoInput}</Text>
+        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.title}>📷 Show a message</Text>
+        <Text style={styles.subtitle}>
+          Take a photo of a suspicious text, email, or letter. We'll read it and check for scams.
+        </Text>
 
         {/* Image selection */}
-        <View style={styles.selectionButtons}>
-          <PrimaryActionButton
-            label={Strings.buttons.takePhoto}
+        <View style={styles.photoButtons}>
+          <TouchableOpacity
+            style={styles.photoBtn}
             onPress={handleTakePhoto}
             disabled={isExtracting || isAnalyzing}
-          />
-          <SecondaryActionButton
-            label={Strings.buttons.chooseFromLibrary}
+            accessibilityRole="button"
+          >
+            <Text style={styles.photoBtnIcon}>📸</Text>
+            <Text style={styles.photoBtnText}>Take a photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.photoBtn, styles.photoBtnOutline]}
             onPress={handleChooseFromLibrary}
-          />
+            disabled={isExtracting || isAnalyzing}
+            accessibilityRole="button"
+          >
+            <Text style={styles.photoBtnIcon}>🖼️</Text>
+            <Text style={[styles.photoBtnText, styles.photoBtnTextOutline]}>
+              Choose from library
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Image preview */}
@@ -158,169 +147,179 @@ export default function PhotoInputScreen(): React.JSX.Element {
           <View style={styles.previewContainer}>
             <Image
               source={{ uri: imageUri }}
-              style={styles.imagePreview}
+              style={styles.preview}
               resizeMode="contain"
               accessibilityLabel="Selected image"
             />
           </View>
         ) : (
-          <View style={styles.placeholderContainer}>
+          <View style={styles.placeholder}>
             <Text style={styles.placeholderText}>
-              📷 Take a photo or choose from your library
+              Your photo will appear here
             </Text>
           </View>
         )}
 
         {/* OCR status */}
         {isExtracting && (
-          <View style={styles.statusContainer}>
+          <View style={styles.statusBox}>
             <Text style={styles.statusText}>🔍 Reading text from image…</Text>
+            <Text style={styles.statusSub}>This may take up to 30 seconds</Text>
           </View>
         )}
 
-        {/* Network error message */}
+        {/* Network warning */}
         {ocrFailed && !isExtracting && (
-          <View style={styles.networkWarning}>
-            <Text style={styles.networkWarningText}>
-              ⚠️ Could not read text automatically — network may be blocking the request.
-              {'\n'}Switch to cellular data, or type the message below.
+          <View style={styles.warningBox}>
+            <Text style={styles.warningTitle}>⚠️ Could not read text automatically</Text>
+            <Text style={styles.warningText}>
+              This usually happens on restricted WiFi networks.{'\n'}
+              Try switching to cellular data, or type the message below.
             </Text>
           </View>
         )}
 
-        {/* Extracted text — editable so user can correct OCR errors */}
+        {/* Extracted text */}
         {imageUri && !isExtracting && (
           <View style={styles.textSection}>
             <Text style={styles.textLabel}>
-              {extractedText
-                ? '✅ Text detected — edit if needed:'
-                : 'Type the message text here:'}
+              {extractedText ? '✅ Text found — edit if needed:' : '✏️ Type the message text:'}
             </Text>
             <TextInput
               style={styles.textInput}
               multiline
               value={extractedText}
               onChangeText={setExtractedText}
-              placeholder={'Type what the message says…'}
+              placeholder="Type what the message says…"
               placeholderTextColor={Colors.grayText}
-              accessibilityLabel="Message text"
               textAlignVertical="top"
               autoCorrect={false}
+              accessibilityLabel="Message text"
             />
           </View>
         )}
 
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          {imageUri && !isExtracting && (
-            <PrimaryActionButton
-              label={isAnalyzing ? 'Analyzing…' : Strings.buttons.analyze}
-              onPress={handleAnalyze}
-              disabled={analyzeDisabled}
-            />
-          )}
-          <SecondaryActionButton
-            label={Strings.buttons.cancel}
-            onPress={() => router.back()}
-          />
-        </View>
+        {/* Analyze */}
+        {imageUri && !isExtracting && (
+          <TouchableOpacity
+            style={[styles.analyzeBtn, !canAnalyze && styles.analyzeBtnDisabled]}
+            onPress={handleAnalyze}
+            disabled={!canAnalyze}
+            accessibilityRole="button"
+          >
+            <Text style={styles.analyzeBtnText}>
+              {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-  },
-  scrollContent: {
+  safe: { flex: 1, backgroundColor: Colors.cream },
+  scroll: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
-    gap: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 48,
+    gap: 16,
   },
-  title: {
-    fontSize: Typography.headingSize,
-    fontWeight: '700',
-    color: Colors.darkText,
-    textAlign: 'center',
+  back: { paddingVertical: 4 },
+  backText: { fontSize: 18, color: Colors.softBlue, fontWeight: '600' },
+  title: { fontSize: 28, fontWeight: '800', color: Colors.darkText },
+  subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
+  photoButtons: { flexDirection: 'row', gap: 12 },
+  photoBtn: {
+    flex: 1,
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 88,
+    justifyContent: 'center',
   },
-  selectionButtons: {
-    gap: 12,
+  photoBtnOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: Colors.softBlue,
   },
+  photoBtnIcon: { fontSize: 28 },
+  photoBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
+  photoBtnTextOutline: { color: Colors.softBlue },
   previewContainer: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.softBlue,
     backgroundColor: '#000',
   },
-  imagePreview: {
-    width: '100%',
-    height: 220,
-  },
-  placeholderContainer: {
-    height: 100,
-    borderRadius: 12,
-    borderWidth: 1,
+  preview: { width: '100%', height: 240 },
+  placeholder: {
+    height: 120,
+    borderRadius: 16,
+    borderWidth: 2,
     borderColor: Colors.softBlue,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  placeholderText: {
-    fontSize: Typography.bodySize,
-    color: Colors.grayText,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-  },
-  statusContainer: {
+  placeholderText: { fontSize: 18, color: Colors.grayText },
+  statusBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 1,
     borderColor: Colors.softBlue,
-    padding: 16,
-    alignItems: 'center',
   },
-  statusText: {
-    fontSize: Typography.bodySize,
-    color: Colors.grayText,
-  },
-  networkWarning: {
+  statusText: { fontSize: 20, color: Colors.darkText, fontWeight: '600' },
+  statusSub: { fontSize: 15, color: Colors.grayText },
+  warningBox: {
     backgroundColor: '#FFF8E7',
-    borderRadius: 12,
+    borderRadius: 16,
+    padding: 20,
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.amber,
-    padding: 16,
   },
-  networkWarningText: {
-    fontSize: Typography.captionSize,
-    color: Colors.darkText,
-    lineHeight: Typography.captionSize * 1.6,
-  },
-  textSection: {
-    gap: 8,
-  },
-  textLabel: {
-    fontSize: Typography.bodySize,
-    fontWeight: '600',
-    color: Colors.darkText,
-  },
+  warningTitle: { fontSize: 18, fontWeight: '700', color: Colors.darkText },
+  warningText: { fontSize: 16, color: Colors.grayText, lineHeight: 24 },
+  textSection: { gap: 8 },
+  textLabel: { fontSize: 18, fontWeight: '600', color: Colors.darkText },
   textInput: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 2,
     borderColor: Colors.softBlue,
-    padding: 16,
-    fontSize: Typography.bodySize,
+    padding: 18,
+    fontSize: 18,
     color: Colors.darkText,
     minHeight: 140,
-    lineHeight: Typography.bodySize * 1.5,
+    lineHeight: 26,
   },
-  actionsContainer: {
-    gap: 12,
+  analyzeBtn: {
+    backgroundColor: Colors.deepNavy,
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    minHeight: 72,
+    justifyContent: 'center',
   },
+  analyzeBtnDisabled: { opacity: 0.4 },
+  analyzeBtnText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  cancelBtn: { alignItems: 'center', paddingVertical: 12 },
+  cancelBtnText: { fontSize: 18, color: Colors.grayText },
 });
