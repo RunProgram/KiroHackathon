@@ -20,17 +20,17 @@ import { MAX_TRUSTED_CONTACTS, useTrustedContact } from '../hooks/useTrustedCont
 import { TrustedContact } from '../types';
 
 const RELATIONSHIPS = [
-  { label: '👧 Daughter', value: 'Daughter' },
-  { label: '👦 Son', value: 'Son' },
-  { label: '👴 Father', value: 'Father' },
-  { label: '👵 Mother', value: 'Mother' },
-  { label: '👶 Grandchild', value: 'Grandchild' },
-  { label: '👫 Spouse / Partner', value: 'Spouse' },
-  { label: '🧑‍⚕️ Caregiver', value: 'Caregiver' },
-  { label: '👨‍👩‍👧 Family Member', value: 'Family Member' },
-  { label: '🤝 Friend', value: 'Friend' },
-  { label: '🏥 Doctor / Nurse', value: 'Doctor' },
-  { label: '✏️ Other…', value: 'Other' },
+  { label: 'Daughter', value: 'Daughter' },
+  { label: 'Son', value: 'Son' },
+  { label: 'Father', value: 'Father' },
+  { label: 'Mother', value: 'Mother' },
+  { label: 'Grandchild', value: 'Grandchild' },
+  { label: 'Spouse / Partner', value: 'Spouse' },
+  { label: 'Caregiver', value: 'Caregiver' },
+  { label: 'Family Member', value: 'Family Member' },
+  { label: 'Friend', value: 'Friend' },
+  { label: 'Doctor / Nurse', value: 'Doctor' },
+  { label: 'Other…', value: 'Other' },
 ];
 
 type FormState = {
@@ -100,7 +100,7 @@ export default function TrustedContactScreen(): React.JSX.Element {
         phoneNumber: form.phone.trim(),
         relationship: finalRelationship,
       });
-      Alert.alert('✅ Saved!', `${form.name} has been saved.`);
+      Alert.alert('Saved!', `${form.name} has been saved.`);
       closeForm();
     } catch (err) {
       setPhoneError(err instanceof Error ? err.message : 'Invalid phone number.');
@@ -138,7 +138,7 @@ export default function TrustedContactScreen(): React.JSX.Element {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>👤 Trusted Contacts</Text>
+        <Text style={styles.title}>Trusted Contacts</Text>
         <Text style={styles.subtitle}>
           Save up to {MAX_TRUSTED_CONTACTS} people you trust. They'll be available to call instantly from the app.
         </Text>
@@ -268,7 +268,7 @@ export default function TrustedContactScreen(): React.JSX.Element {
               disabled={!form.name || !form.phone}
               accessibilityRole="button"
             >
-              <Text style={styles.saveBtnText}>💾 Save</Text>
+              <Text style={styles.saveBtnText}>Save</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelFormBtn} onPress={closeForm}>

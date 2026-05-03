@@ -19,18 +19,6 @@ import { analyzeScamRisk } from '../lib/analyzeScamRisk';
 import { DEMO_SCENARIOS } from '../lib/demoScenarios';
 import { DemoScenario } from '../types';
 
-const SCENARIO_ICONS: Record<string, string> = {
-  bank_impersonation: '🏦',
-  grandparent_scam: '👴',
-  medicare_government: '🏥',
-  amazon_delivery: '📦',
-  tech_support: '💻',
-  irs_tax: '📋',
-  lottery_prize: '🎰',
-  romance_scam: '💔',
-  unknown: '⚠️',
-};
-
 export default function DemoScenariosScreen(): React.JSX.Element {
   const router = useRouter();
   const { saveResult } = useRecentResult();
@@ -59,7 +47,7 @@ export default function DemoScenariosScreen(): React.JSX.Element {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>📚 Example Scams</Text>
+        <Text style={styles.title}>Example Scams</Text>
         <Text style={styles.subtitle}>
           Tap any example to see how TrustPause would analyze it.
         </Text>
@@ -73,9 +61,6 @@ export default function DemoScenariosScreen(): React.JSX.Element {
               accessibilityRole="button"
               accessibilityLabel={scenario.title}
             >
-              <Text style={styles.cardIcon}>
-                {SCENARIO_ICONS[scenario.scamType] ?? '⚠️'}
-              </Text>
               <View style={styles.cardText}>
                 <Text style={styles.cardTitle}>{scenario.title}</Text>
                 <Text style={styles.cardDesc}>{scenario.description}</Text>
@@ -123,7 +108,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  cardIcon: { fontSize: 32 },
   cardText: { flex: 1, gap: 4 },
   cardTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkText },
   cardDesc: { fontSize: 15, color: Colors.grayText, lineHeight: 20 },

@@ -23,7 +23,6 @@ export default function RootLayout() {
         <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
           {!appReady && (
             <View style={styles.splash}>
-              <Text style={styles.splashIcon}>🛡️</Text>
               <Text style={styles.splashName}>TrustPause</Text>
               <Text style={styles.splashTagline}>You're safe. Let's check together.</Text>
             </View>
@@ -43,9 +42,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
     gap: 12,
-  },
-  splashIcon: {
-    fontSize: 72,
   },
   splashName: {
     fontSize: 34,

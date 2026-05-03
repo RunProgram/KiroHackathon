@@ -2,7 +2,7 @@
  * Preservation Checking Test — Task 5.1
  *
  * Verifies that pressing "Read aloud" while speech is already playing
- * calls Speech.stop() and resets the button text to "🔊 Read aloud".
+ * calls Speech.stop() and resets the button text to "Read aloud".
  * This is existing behavior that must NOT be broken by the bugfix.
  *
  * Expected: PASS on both unfixed and fixed code.
@@ -89,11 +89,11 @@ describe('Preservation — Speech stop behavior when pressing "Read aloud" while
    *
    * Full flow:
    * 1. Render ResultsScreen with a mock recentResult
-   * 2. Press "Read aloud" → starts speaking, button changes to "⏹ Stop"
-   * 3. Press "⏹ Stop" → should call Speech.stop()
+   * 2. Press "Read aloud" → starts speaking, button changes to "Stop"
+   * 3. Press "Stop" → should call Speech.stop()
    * 4. Assert Speech.stop was called
    * 5. Simulate the onStopped callback to reset state
-   * 6. Assert button text is back to "🔊 Read aloud"
+   * 6. Assert button text is back to "Read aloud"
    */
   it('calls Speech.stop() and resets button when pressing stop while speaking', async () => {
     const { getByText, queryByText } = render(<ResultsScreen />);
@@ -104,16 +104,16 @@ describe('Preservation — Speech stop behavior when pressing "Read aloud" while
     });
 
     // Step 2: Press "Read aloud" — starts speaking
-    const readAloudButton = getByText('🔊 Read aloud');
+    const readAloudButton = getByText('Read aloud');
     fireEvent.press(readAloudButton);
 
-    // Verify Speech.speak was called and button changed to "⏹ Stop"
+    // Verify Speech.speak was called and button changed to "Stop"
     expect(mockSpeak).toHaveBeenCalledTimes(1);
-    expect(getByText('⏹ Stop')).toBeTruthy();
-    expect(queryByText('🔊 Read aloud')).toBeNull();
+    expect(getByText('Stop')).toBeTruthy();
+    expect(queryByText('Read aloud')).toBeNull();
 
-    // Step 3: Press "⏹ Stop" while speaking
-    const stopButton = getByText('⏹ Stop');
+    // Step 3: Press "Stop" while speaking
+    const stopButton = getByText('Stop');
     await act(async () => {
       fireEvent.press(stopButton);
     });
@@ -128,9 +128,9 @@ describe('Preservation — Speech stop behavior when pressing "Read aloud" while
       options.onStopped();
     });
 
-    // Step 6: Assert button text is back to "🔊 Read aloud"
-    expect(getByText('🔊 Read aloud')).toBeTruthy();
-    expect(queryByText('⏹ Stop')).toBeNull();
+    // Step 6: Assert button text is back to "Read aloud"
+    expect(getByText('Read aloud')).toBeTruthy();
+    expect(queryByText('Stop')).toBeNull();
   });
 });
 
@@ -230,7 +230,7 @@ describe('Preservation — Text construction from AnalysisResult is unchanged', 
     });
 
     // Press "Read aloud"
-    fireEvent.press(getByText('🔊 Read aloud'));
+    fireEvent.press(getByText('Read aloud'));
 
     // Capture the text argument passed to Speech.speak()
     expect(mockSpeak).toHaveBeenCalledTimes(1);
@@ -274,7 +274,7 @@ describe('Preservation — Text construction from AnalysisResult is unchanged', 
     });
 
     // Press "Read aloud"
-    fireEvent.press(getByText('🔊 Read aloud'));
+    fireEvent.press(getByText('Read aloud'));
 
     // Capture the text argument passed to Speech.speak()
     expect(mockSpeak).toHaveBeenCalledTimes(1);

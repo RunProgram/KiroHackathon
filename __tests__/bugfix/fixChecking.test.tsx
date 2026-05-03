@@ -7,7 +7,7 @@
  *
  * Task 4.2: Verifies that after the fix, Alert.alert is called with the
  * correct title when the onError callback fires, and that the button
- * text resets from "⏹ Stop" back to "🔊 Read aloud".
+ * text resets from "Stop" back to "Read aloud".
  *
  * Expected: PASS on fixed code.
  *
@@ -104,7 +104,7 @@ describe('Fix Checking — Speech.speak() includes language option after fix', (
     });
 
     // Press "Read aloud"
-    const readAloudButton = getByText('🔊 Read aloud');
+    const readAloudButton = getByText('Read aloud');
     fireEvent.press(readAloudButton);
 
     // Verify Speech.speak was called exactly once
@@ -165,7 +165,7 @@ describe('Fix Checking — Alert.alert is called when onError fires after fix', 
     });
 
     // Press "Read aloud" to trigger Speech.speak()
-    const readAloudButton = getByText('🔊 Read aloud');
+    const readAloudButton = getByText('Read aloud');
     fireEvent.press(readAloudButton);
 
     // Verify Speech.speak was called
@@ -193,9 +193,9 @@ describe('Fix Checking — Alert.alert is called when onError fires after fix', 
    * **Validates: Requirements 2.2**
    *
    * After the fix, when onError fires, the button text should reset
-   * from "⏹ Stop" back to "🔊 Read aloud" (isSpeaking state reset).
+   * from "Stop" back to "Read aloud" (isSpeaking state reset).
    */
-  it('resets button text from "⏹ Stop" to "🔊 Read aloud" when onError fires', () => {
+  it('resets button text from "Stop" to "Read aloud" when onError fires', () => {
     const { getByText, queryByText } = render(<ResultsScreen />);
 
     // Advance past the 300ms ready delay
@@ -203,9 +203,9 @@ describe('Fix Checking — Alert.alert is called when onError fires after fix', 
       jest.advanceTimersByTime(350);
     });
 
-    // Press "Read aloud" — button should change to "⏹ Stop"
-    fireEvent.press(getByText('🔊 Read aloud'));
-    expect(getByText('⏹ Stop')).toBeTruthy();
+    // Press "Read aloud" — button should change to "Stop"
+    fireEvent.press(getByText('Read aloud'));
+    expect(getByText('Stop')).toBeTruthy();
 
     // Extract the onError callback
     const [_text, options] = mockSpeak.mock.calls[0];
@@ -215,9 +215,9 @@ describe('Fix Checking — Alert.alert is called when onError fires after fix', 
       options.onError(new Error('TTS engine failed'));
     });
 
-    // Button should reset back to "🔊 Read aloud"
-    expect(getByText('🔊 Read aloud')).toBeTruthy();
-    expect(queryByText('⏹ Stop')).toBeNull();
+    // Button should reset back to "Read aloud"
+    expect(getByText('Read aloud')).toBeTruthy();
+    expect(queryByText('Stop')).toBeNull();
   });
 });
 
@@ -266,7 +266,7 @@ describe('Fix Checking — Empty text guard prevents Speech.speak() and shows al
       jest.advanceTimersByTime(350);
     });
 
-    fireEvent.press(getByText('🔊 Read aloud'));
+    fireEvent.press(getByText('Read aloud'));
 
     // Speech.speak should still be called — headline is always non-empty
     expect(mockSpeak).toHaveBeenCalledTimes(1);
@@ -314,7 +314,7 @@ describe('Fix Checking — Empty text guard prevents Speech.speak() and shows al
       jest.advanceTimersByTime(350);
     });
 
-    fireEvent.press(getByText('🔊 Read aloud'));
+    fireEvent.press(getByText('Read aloud'));
 
     // Speech.speak must be called for every valid risk level
     expect(mockSpeak).toHaveBeenCalledTimes(1);

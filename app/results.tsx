@@ -23,21 +23,21 @@ const RISK_CONFIG = {
   'High Risk': {
     bg: '#FDECEA',
     border: Colors.red,
-    icon: '🚨',
+    icon: '',
     headline: 'This looks like a scam',
     color: Colors.red,
   },
   'Be Careful': {
     bg: '#FFF8E7',
     border: Colors.amber,
-    icon: '⚠️',
+    icon: '',
     headline: 'Be careful — something seems off',
     color: Colors.amber,
   },
   'Probably Safe': {
     bg: '#EDF7EE',
     border: Colors.green,
-    icon: '✅',
+    icon: '',
     headline: 'This looks probably safe',
     color: Colors.green,
   },
@@ -53,12 +53,27 @@ const FLAG_LABELS: Record<string, string> = {
   ssn_medicare_request: 'Asking for Social Security / Medicare number',
   remote_access_request: 'Asking to access your computer',
   impersonation_bank: 'Pretending to be your bank',
-  impersonation_amazon: 'Pretending to be Amazon',
+  impersonation_amazon: 'Pretending to be Amazon / delivery service',
   impersonation_medicare: 'Pretending to be Medicare',
   impersonation_irs: 'Pretending to be the IRS',
   impersonation_government: 'Pretending to be a government agency',
   impersonation_family: 'Pretending to be a family member',
-  impersonation_police: 'Pretending to be police',
+  impersonation_police: 'Pretending to be police / law enforcement',
+  impersonation_tech_support: 'Fake tech support scam',
+  lottery_prize_scam: 'Fake prize / lottery scam',
+  romance_scam: 'Romance / relationship scam',
+};
+
+const SCAM_TYPE_LABELS: Record<string, string> = {
+  bank_impersonation: 'Bank Impersonation Scam',
+  grandparent_scam: 'Grandparent / Family Emergency Scam',
+  medicare_government: 'Government Impersonation Scam',
+  amazon_delivery: 'Delivery / Shopping Scam',
+  tech_support: 'Tech Support Scam',
+  irs_tax: 'IRS / Tax Scam',
+  lottery_prize: 'Lottery / Prize Scam',
+  romance_scam: 'Romance Scam',
+  unknown: 'Suspicious Activity',
 };
 
 export default function ResultsScreen(): React.JSX.Element {
@@ -150,7 +165,7 @@ export default function ResultsScreen(): React.JSX.Element {
           accessibilityLabel={isSpeaking ? 'Stop reading aloud' : 'Read aloud'}
         >
           <Text style={styles.speakBtnText}>
-            {isSpeaking ? '⏹ Stop' : '🔊 Read aloud'}
+            {isSpeaking ? 'Stop' : 'Read aloud'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -161,7 +176,6 @@ export default function ResultsScreen(): React.JSX.Element {
       >
         {/* Risk banner */}
         <View style={[styles.riskBanner, { backgroundColor: config.bg, borderColor: config.border }]}>
-          <Text style={styles.riskIcon}>{config.icon}</Text>
           <Text style={[styles.riskHeadline, { color: config.color }]}>
             {config.headline}
           </Text>
@@ -172,11 +186,35 @@ export default function ResultsScreen(): React.JSX.Element {
           ) : null}
         </View>
 
+        {/* Confidence section */}
+        <View style={styles.confidenceSection}>
+          <Text style={styles.confidenceTitle}>Analysis</Text>
+          <Text style={styles.confidenceScamType}>
+            {SCAM_TYPE_LABELS[result.scamType] ?? 'Suspicious Activity'}
+          </Text>
+          <Text style={styles.confidenceFlagCount}>
+            {result.redFlags.length === 0
+              ? 'No warning signs detected'
+              : result.redFlags.length === 1
+                ? '1 warning sign detected'
+                : `${result.redFlags.length} warning signs detected`}
+          </Text>
+          <Text style={styles.confidenceDescription}>
+            {result.redFlags.length === 0
+              ? 'No warning signs detected'
+              : result.redFlags.length === 1
+                ? 'One warning sign found'
+                : result.redFlags.length <= 3
+                  ? 'Multiple warning signs found'
+                  : 'Many warning signs found — very likely a scam'}
+          </Text>
+        </View>
+
         {/* Caregiver alert */}
         {result.caregiverRecommended && (
           <View style={styles.caregiverAlert}>
             <Text style={styles.caregiverAlertText}>
-              📣 We strongly recommend calling your trusted person about this right now.
+              We strongly recommend calling your trusted person about this right now.
             </Text>
             <TouchableOpacity
               style={styles.caregiverCallBtn}
@@ -184,7 +222,7 @@ export default function ResultsScreen(): React.JSX.Element {
               accessibilityRole="button"
             >
               <Text style={styles.caregiverCallBtnText}>
-                📞 Call {trustedContact?.name ?? 'trusted person'}
+                Call {trustedContact?.name ?? 'trusted person'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -193,7 +231,7 @@ export default function ResultsScreen(): React.JSX.Element {
         {/* Warning signs */}
         {result.redFlags.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>⚠️ Warning signs detected</Text>
+            <Text style={styles.sectionTitle}>Warning Signs Detected</Text>
             {result.redFlags.map((flag, i) => (
               <View key={`${flag}-${i}`} style={styles.flagRow}>
                 <Text style={styles.flagDot}>•</Text>
@@ -205,7 +243,7 @@ export default function ResultsScreen(): React.JSX.Element {
 
         {/* What to do */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>✅ What to do now</Text>
+          <Text style={styles.sectionTitle}>What To Do Now</Text>
           {result.doNow.map((item, i) => (
             <View key={i} style={styles.actionRow}>
               <View style={styles.actionNumber}>
@@ -218,7 +256,7 @@ export default function ResultsScreen(): React.JSX.Element {
 
         {/* What NOT to do */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🚫 Do NOT do these</Text>
+          <Text style={styles.sectionTitle}>Do NOT Do These</Text>
           {result.doNotDo.map((item, i) => (
             <View key={i} style={styles.flagRow}>
               <Text style={styles.flagDot}>✗</Text>
@@ -229,7 +267,7 @@ export default function ResultsScreen(): React.JSX.Element {
 
         {/* What to say */}
         <View style={styles.scriptSection}>
-          <Text style={styles.scriptTitle}>💬 What to say to them</Text>
+          <Text style={styles.scriptTitle}>What To Say</Text>
           <Text style={styles.scriptText}>"{result.safeResponseScript}"</Text>
         </View>
 
@@ -241,7 +279,7 @@ export default function ResultsScreen(): React.JSX.Element {
             accessibilityRole="button"
           >
             <Text style={styles.callBtnText}>
-              📞 Call {trustedContact?.name ?? 'trusted person'}
+              Call {trustedContact?.name ?? 'trusted person'}
             </Text>
           </TouchableOpacity>
         )}
@@ -286,18 +324,17 @@ const styles = StyleSheet.create({
   },
 
   riskBanner: {
-    borderRadius: 20,
-    borderWidth: 2,
-    padding: 24,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 20,
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  riskIcon: { fontSize: 48 },
   riskHeadline: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
-    lineHeight: 32,
+    lineHeight: 30,
   },
   riskSummary: {
     fontSize: 16,
@@ -305,6 +342,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     lineHeight: 22,
+  },
+
+  confidenceSection: {
+    backgroundColor: '#F4F5F7',
+    borderRadius: 12,
+    padding: 16,
+    gap: 4,
+  },
+  confidenceTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.grayText,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  confidenceScamType: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.darkText,
+    lineHeight: 24,
+  },
+  confidenceFlagCount: {
+    fontSize: 14,
+    color: Colors.grayText,
+    lineHeight: 20,
+  },
+  confidenceDescription: {
+    fontSize: 14,
+    color: Colors.grayText,
+    lineHeight: 20,
   },
 
   caregiverAlert: {
@@ -334,20 +401,20 @@ const styles = StyleSheet.create({
 
   section: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
+    borderRadius: 12,
+    padding: 16,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
     elevation: 1,
   },
-  sectionTitle: { fontSize: 20, fontWeight: '700', color: Colors.darkText },
-  flagRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  flagDot: { fontSize: 18, color: Colors.red, fontWeight: '700', marginTop: 2 },
-  flagText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
-  actionRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: Colors.darkText },
+  flagRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  flagDot: { fontSize: 16, color: Colors.red, fontWeight: '700', marginTop: 2 },
+  flagText: { fontSize: 16, color: Colors.darkText, flex: 1, lineHeight: 22 },
+  actionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   actionNumber: {
     width: 28,
     height: 28,
@@ -362,24 +429,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  actionText: { fontSize: 18, color: Colors.darkText, flex: 1, lineHeight: 26 },
+  actionText: { fontSize: 16, color: Colors.darkText, flex: 1, lineHeight: 22 },
 
   scriptSection: {
     backgroundColor: Colors.deepNavy,
-    borderRadius: 16,
-    padding: 20,
-    gap: 10,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
   },
-  scriptTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-  scriptText: { fontSize: 18, color: '#FFFFFF', lineHeight: 28, fontStyle: 'italic' },
+  scriptTitle: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  scriptText: { fontSize: 16, color: '#FFFFFF', lineHeight: 24, fontStyle: 'italic' },
 
   callBtn: {
     backgroundColor: Colors.red,
-    borderRadius: 16,
-    paddingVertical: 20,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    minHeight: 72,
+    minHeight: 56,
     justifyContent: 'center',
   },
-  callBtnText: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  callBtnText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
 });

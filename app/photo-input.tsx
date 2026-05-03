@@ -130,7 +130,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>📷 Show a message</Text>
+        <Text style={styles.title}>Show a message</Text>
         <Text style={styles.subtitle}>
           Take a photo of a suspicious text, email, or letter. We'll read it and check for scams.
         </Text>
@@ -143,7 +143,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
             disabled={isExtracting || isAnalyzing}
             accessibilityRole="button"
           >
-            <Text style={styles.photoBtnIcon}>📸</Text>
             <Text style={styles.photoBtnText}>Take a photo</Text>
           </TouchableOpacity>
 
@@ -153,7 +152,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
             disabled={isExtracting || isAnalyzing}
             accessibilityRole="button"
           >
-            <Text style={styles.photoBtnIcon}>🖼️</Text>
             <Text style={[styles.photoBtnText, styles.photoBtnTextOutline]}>
               Choose from library
             </Text>
@@ -181,7 +179,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
         {/* OCR status */}
         {isExtracting && (
           <View style={styles.statusBox}>
-            <Text style={styles.statusText}>🔍 Reading text from image…</Text>
+            <Text style={styles.statusText}>Reading text from image…</Text>
             <Text style={styles.statusSub}>This may take up to 30 seconds</Text>
           </View>
         )}
@@ -189,7 +187,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
         {/* Network warning */}
         {ocrFailed && !isExtracting && (
           <View style={styles.warningBox}>
-            <Text style={styles.warningTitle}>⚠️ Could not read text automatically</Text>
+            <Text style={styles.warningTitle}>Could not read text automatically</Text>
             <Text style={styles.warningText}>
               This usually happens on restricted WiFi networks.{'\n'}
               Try switching to cellular data and uploading the photo again.
@@ -200,14 +198,14 @@ export default function PhotoInputScreen(): React.JSX.Element {
         {/* Text found confirmation */}
         {imageUri && !isExtracting && extractedText ? (
           <View style={styles.textFoundBox}>
-            <Text style={styles.textFoundLabel}>✅ Text found — ready to check</Text>
+            <Text style={styles.textFoundLabel}>Text found — ready to check</Text>
           </View>
         ) : null}
 
         {/* URL scan results */}
         {urlResults.length > 0 && (
           <View style={styles.urlSection}>
-            <Text style={styles.urlSectionTitle}>🔗 Links Found in Image</Text>
+            <Text style={styles.urlSectionTitle}>Links Found in Image</Text>
             {urlResults.map((ur, i) => (
               <View
                 key={i}
@@ -219,9 +217,6 @@ export default function PhotoInputScreen(): React.JSX.Element {
                 ]}
               >
                 <View style={styles.urlCardHeader}>
-                  <Text style={styles.urlCardIcon}>
-                    {ur.riskLevel === 'Dangerous' ? '🚨' : ur.riskLevel === 'Suspicious' ? '⚠️' : '✅'}
-                  </Text>
                   <Text style={[
                     styles.urlCardRisk,
                     ur.riskLevel === 'Dangerous' && { color: Colors.red },
@@ -253,7 +248,7 @@ export default function PhotoInputScreen(): React.JSX.Element {
             accessibilityRole="button"
           >
             <Text style={styles.analyzeBtnText}>
-              {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+              {isAnalyzing ? 'Checking…' : 'Check for scam'}
             </Text>
           </TouchableOpacity>
         )}
@@ -299,7 +294,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.softBlue,
   },
-  photoBtnIcon: { fontSize: 28 },
   photoBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', textAlign: 'center' },
   photoBtnTextOutline: { color: Colors.softBlue },
   previewContainer: {
@@ -377,7 +371,6 @@ const styles = StyleSheet.create({
   urlCardSuspicious: { backgroundColor: '#FFF8E7', borderColor: Colors.amber },
   urlCardSafe: { backgroundColor: '#EDF7EE', borderColor: Colors.green },
   urlCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  urlCardIcon: { fontSize: 22 },
   urlCardRisk: { fontSize: 18, fontWeight: '800' },
   urlCardUrl: { fontSize: 14, color: Colors.grayText, fontFamily: 'monospace' },
   urlCardFlags: { gap: 4 },

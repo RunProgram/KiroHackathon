@@ -96,7 +96,7 @@ describe('Exploratory Bug Condition — Speech.speak() missing language option',
     });
 
     // Find and press the "Read aloud" button
-    const readAloudButton = getByText('🔊 Read aloud');
+    const readAloudButton = getByText('Read aloud');
     fireEvent.press(readAloudButton);
 
     // Verify Speech.speak was called
@@ -156,7 +156,7 @@ describe('Exploratory Bug Condition — onError callback does not show Alert', (
     });
 
     // Press "Read aloud" to trigger Speech.speak()
-    const readAloudButton = getByText('🔊 Read aloud');
+    const readAloudButton = getByText('Read aloud');
     fireEvent.press(readAloudButton);
 
     // Verify Speech.speak was called

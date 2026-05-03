@@ -140,7 +140,7 @@ describe('Preservation — Property: constructed speech text is always non-empty
         });
 
         // Press "Read aloud"
-        fireEvent.press(getByText('🔊 Read aloud'));
+        fireEvent.press(getByText('Read aloud'));
 
         // Assert Speech.speak was called
         expect(mockSpeak).toHaveBeenCalledTimes(1);

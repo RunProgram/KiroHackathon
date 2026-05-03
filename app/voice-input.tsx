@@ -68,7 +68,7 @@ export default function VoiceInputScreen(): React.JSX.Element {
           </TouchableOpacity>
 
           {/* Header */}
-          <Text style={styles.title}>✍️ What happened?</Text>
+          <Text style={styles.title}>What happened?</Text>
           <Text style={styles.subtitle}>
             Type what they said or what the message looked like.{'\n'}
             Don't worry about getting it perfect — just tell us what happened.
@@ -132,7 +132,7 @@ export default function VoiceInputScreen(): React.JSX.Element {
             accessibilityRole="button"
           >
             <Text style={styles.analyzeBtnText}>
-              {isAnalyzing ? '⏳ Checking…' : '🔍 Check for scam'}
+              {isAnalyzing ? 'Checking…' : 'Check for scam'}
             </Text>
           </TouchableOpacity>
 
@@ -182,36 +182,36 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
   input: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.softBlue,
-    padding: 18,
-    fontSize: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D4D4D8',
+    padding: 16,
+    fontSize: 18,
     color: Colors.darkText,
     minHeight: 180,
-    lineHeight: 28,
+    lineHeight: 26,
   },
   examples: { gap: 8 },
   examplesLabel: { fontSize: 16, color: Colors.grayText, fontWeight: '600' },
   exampleChip: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.softBlue,
+    borderColor: '#E4E4E7',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  exampleChipText: { fontSize: 16, color: Colors.softBlue, lineHeight: 22 },
+  exampleChipText: { fontSize: 15, color: Colors.grayText, lineHeight: 22 },
   analyzeBtn: {
     backgroundColor: Colors.deepNavy,
-    borderRadius: 16,
-    paddingVertical: 20,
+    borderRadius: 12,
+    paddingVertical: 18,
     alignItems: 'center',
-    minHeight: 72,
+    minHeight: 56,
     justifyContent: 'center',
   },
   analyzeBtnDisabled: { opacity: 0.4 },
-  analyzeBtnText: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
+  analyzeBtnText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
   cancelBtn: { alignItems: 'center', paddingVertical: 12 },
   cancelBtnText: { fontSize: 18, color: Colors.grayText },
   toolbar: {

@@ -33,13 +33,13 @@ const URL_SHORTENERS = [
 
 // Brands commonly impersonated in phishing
 const IMPERSONATED_BRANDS = [
-  { brand: 'paypal', legit: ['paypal.com'] },
-  { brand: 'apple', legit: ['apple.com', 'icloud.com'] },
-  { brand: 'amazon', legit: ['amazon.com', 'amazon.co.uk', 'amazon.ca', 'amazon.de'] },
-  { brand: 'google', legit: ['google.com', 'googleapis.com', 'google.co'] },
-  { brand: 'microsoft', legit: ['microsoft.com', 'live.com', 'outlook.com', 'office.com'] },
+  { brand: 'paypal', legit: ['paypal.com', 'paypal.me'] },
+  { brand: 'apple', legit: ['apple.com', 'icloud.com', 'appleid.apple.com'] },
+  { brand: 'amazon', legit: ['amazon.com', 'amazon.co.uk', 'amazon.ca', 'amazon.de', 'amazon.in'] },
+  { brand: 'google', legit: ['google.com', 'googleapis.com', 'google.co', 'accounts.google.com'] },
+  { brand: 'microsoft', legit: ['microsoft.com', 'live.com', 'outlook.com', 'office.com', 'office365.com'] },
   { brand: 'netflix', legit: ['netflix.com'] },
-  { brand: 'facebook', legit: ['facebook.com', 'fb.com'] },
+  { brand: 'facebook', legit: ['facebook.com', 'fb.com', 'fb.me'] },
   { brand: 'instagram', legit: ['instagram.com'] },
   { brand: 'chase', legit: ['chase.com'] },
   { brand: 'wellsfargo', legit: ['wellsfargo.com'] },
@@ -48,7 +48,7 @@ const IMPERSONATED_BRANDS = [
   { brand: 'fedex', legit: ['fedex.com'] },
   { brand: 'ups', legit: ['ups.com'] },
   { brand: 'irs', legit: ['irs.gov'] },
-  { brand: 'medicare', legit: ['medicare.gov'] },
+  { brand: 'medicare', legit: ['medicare.gov', 'cms.gov'] },
   { brand: 'walmart', legit: ['walmart.com'] },
   { brand: 'costco', legit: ['costco.com'] },
   { brand: 'target', legit: ['target.com'] },
@@ -57,6 +57,28 @@ const IMPERSONATED_BRANDS = [
   { brand: 'cashapp', legit: ['cash.app'] },
   { brand: 'whatsapp', legit: ['whatsapp.com'] },
   { brand: 'telegram', legit: ['telegram.org'] },
+  { brand: 'dhl', legit: ['dhl.com'] },
+  { brand: 'usbank', legit: ['usbank.com'] },
+  { brand: 'citibank', legit: ['citibank.com', 'citi.com'] },
+  { brand: 'capitalone', legit: ['capitalone.com'] },
+  { brand: 'schwab', legit: ['schwab.com'] },
+  { brand: 'fidelity', legit: ['fidelity.com'] },
+  { brand: 'vanguard', legit: ['vanguard.com'] },
+  { brand: 'robinhood', legit: ['robinhood.com'] },
+  { brand: 'coinbase', legit: ['coinbase.com'] },
+  { brand: 'binance', legit: ['binance.com'] },
+  { brand: 'spotify', legit: ['spotify.com'] },
+  { brand: 'linkedin', legit: ['linkedin.com'] },
+  { brand: 'twitter', legit: ['twitter.com', 'x.com'] },
+  { brand: 'tiktok', legit: ['tiktok.com'] },
+  { brand: 'snapchat', legit: ['snapchat.com'] },
+  { brand: 'discord', legit: ['discord.com', 'discord.gg'] },
+  { brand: 'steam', legit: ['steampowered.com', 'store.steampowered.com'] },
+  { brand: 'ebay', legit: ['ebay.com'] },
+  { brand: 'bestbuy', legit: ['bestbuy.com'] },
+  { brand: 'geeksquad', legit: ['geeksquad.com', 'bestbuy.com'] },
+  { brand: 'norton', legit: ['norton.com', 'nortonlifelock.com'] },
+  { brand: 'mcafee', legit: ['mcafee.com'] },
 ];
 
 // Suspicious URL path keywords
@@ -187,9 +209,47 @@ export function analyzeUrl(rawUrl: string): UrlAnalysisResult {
   }
 
   // 12. Check for double extensions or misleading file names
-  if (/\.(exe|zip|scr|bat|cmd|msi|apk|dmg|pkg)/i.test(rawUrl)) {
+  if (/\.(exe|zip|scr|bat|cmd|msi|apk|dmg|pkg|jar|vbs|ps1|rar|7z)/i.test(rawUrl)) {
     flags.push('Links to a downloadable file — could contain malware');
     score += 4;
+  }
+
+  // 13. Check for typosquatting (common misspellings of brands)
+  const TYPOSQUATS: Array<{ pattern: RegExp; real: string }> = [
+    { pattern: /amaz[0o]n/i, real: 'Amazon' },
+    { pattern: /payp[a@]l/i, real: 'PayPal' },
+    { pattern: /g[0o]{2}gle/i, real: 'Google' },
+    { pattern: /faceb[0o]{2}k/i, real: 'Facebook' },
+    { pattern: /micr[0o]s[0o]ft/i, real: 'Microsoft' },
+    { pattern: /netfl[i1]x/i, real: 'Netflix' },
+    { pattern: /app[l1]e/i, real: 'Apple' },
+    { pattern: /we[l1]{2}sfargo/i, real: 'Wells Fargo' },
+    { pattern: /ch[a@]se/i, real: 'Chase' },
+  ];
+  for (const { pattern, real } of TYPOSQUATS) {
+    if (pattern.test(domain) && !domain.includes(real.toLowerCase().replace(/\s/g, ''))) {
+      flags.push(`Domain looks like a misspelling of ${real} — likely a fake site`);
+      score += 5;
+      break;
+    }
+  }
+
+  // 14. Check for suspicious number substitutions in domain (l33t speak)
+  if (/[0-9]/.test(domain.split('.')[0]) && domain.split('.')[0].length > 4) {
+    const domainBase = domain.split('.')[0];
+    const hasLetterNumberMix = /[a-z]/.test(domainBase) && /[0-9]/.test(domainBase);
+    if (hasLetterNumberMix) {
+      flags.push('Domain mixes letters and numbers — common in fake websites');
+      score += 1;
+    }
+  }
+
+  // 15. Check for dash-heavy domains (common in phishing)
+  const domainBase = domain.split('.').slice(0, -1).join('.');
+  const dashCount = (domainBase.match(/-/g) || []).length;
+  if (dashCount >= 3) {
+    flags.push('Domain has many dashes — common pattern in phishing URLs');
+    score += 2;
   }
 
   // Determine risk level

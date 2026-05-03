@@ -50,6 +50,14 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /scratch.*card.*number/i,
       /read.*card.*number/i,
       /card.*code/i,
+      // Natural language patterns
+      /go\s*to\s*(the\s+)?(store|walmart|target|cvs|walgreens)/i,
+      /buy\s*(some|the)?\s*cards/i,
+      /wanted\s*me\s*to\s*buy/i,
+      /asked\s*me\s*to\s*buy.*card/i,
+      /told\s*me\s*to\s*buy.*card/i,
+      /read\s*(the|them)\s*(numbers?|codes?)/i,
+      /scratch\s*off/i,
     ],
   },
   {
@@ -71,6 +79,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /let\s*me\s*(in|access|connect)/i,
       /connect\s*to\s*your/i,
       /remote.*connect/i,
+      // Natural language patterns
+      /wanted\s*(to\s+)?(get\s+)?(on|into|access)\s*my\s*(computer|laptop|phone|device)/i,
+      /asked\s*me\s*to\s*(download|install)/i,
+      /told\s*me\s*to\s*(download|install)/i,
+      /said\s*they\s*need(ed)?\s*(access|to\s*connect)/i,
     ],
   },
 
@@ -110,6 +123,16 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /settle.*payment/i,
       /outstanding.*balance/i,
       /overdue.*payment/i,
+      // Natural language patterns
+      /wanted\s*me\s*to\s*(pay|send|transfer|wire)/i,
+      /asked\s*(me\s+)?(to|for)\s*(pay|send|money|transfer)/i,
+      /told\s*me\s*to\s*(pay|send|transfer|wire)/i,
+      /said\s*I\s*(need|have|must|should)\s*to\s*pay/i,
+      /said\s*I\s*owe/i,
+      /wants?\s*(my|the)\s*money/i,
+      /give\s*(them|him|her)\s*money/i,
+      /asking\s*for\s*money/i,
+      /demanding\s*(money|payment)/i,
     ],
   },
   {
@@ -132,6 +155,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /give\s*me\s*the\s*code/i,
       /tell\s*me\s*the\s*code/i,
       /code\s*(I|we)\s*sent/i,
+      // Natural language patterns
+      /asked\s*(me\s+)?for\s*(a\s+)?(code|pin|number)/i,
+      /wanted\s*(my|the|a)\s*(code|pin)/i,
+      /said\s*they\s*sent\s*(a\s+)?code/i,
+      /give\s*them\s*(the|a|my)\s*(code|pin)/i,
     ],
   },
   {
@@ -151,6 +179,10 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /tell\s*me\s*your\s*password/i,
       /need\s*your\s*password/i,
       /confirm\s*your\s*password/i,
+      // Natural language patterns
+      /asked\s*(me\s+)?for\s*my\s*password/i,
+      /wanted\s*my\s*(password|login|credentials)/i,
+      /said\s*they\s*need(ed)?\s*my\s*password/i,
     ],
   },
   {
@@ -171,6 +203,10 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /mother'?s?\s*maiden/i,
       /verify\s*your\s*identity/i,
       /confirm\s*your\s*identity/i,
+      // Natural language patterns
+      /asked\s*(me\s+)?for\s*my\s*(social|ssn|social\s*security)/i,
+      /wanted\s*my\s*(social|ssn|social\s*security)/i,
+      /need(ed)?\s*my\s*(social|ssn|social\s*security)/i,
     ],
   },
 
@@ -202,6 +238,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /account.*locked/i,
       /locked.*account/i,
       /account.*suspended/i,
+      // Natural language patterns
+      /said\s*they\s*were?\s*(from|with|at)\s*(my\s+|the\s+)?bank/i,
+      /called\s*(from|saying)\s*(they\s*were?\s*)?(my\s+|the\s+)?bank/i,
+      /claiming\s*to\s*be\s*(from\s+)?(my\s+|the\s+)?bank/i,
+      /pretending\s*to\s*be\s*(from\s+)?(my\s+|the\s+)?bank/i,
     ],
   },
   {
@@ -233,6 +274,12 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /shipping\s*(fee|charge|label|update)/i,
       /customs\s*(fee|charge|clearance)/i,
       /click\s*(here|link|below)\s*to\s*(track|confirm|verify|schedule|update)/i,
+      // Natural language patterns
+      /said\s*they\s*were?\s*(from|with)\s*(amazon|usps|fedex|ups)/i,
+      /called\s*(from|about)\s*(amazon|usps|fedex|ups|a\s*delivery|a\s*package)/i,
+      /claiming\s*to\s*be\s*(from\s+)?(amazon|usps|fedex|ups)/i,
+      /text\s*(from|about|saying)\s*(amazon|usps|fedex|ups|delivery|package)/i,
+      /got\s*a\s*(text|message|email)\s*(from|about|saying).*(package|delivery|order)/i,
     ],
   },
   {
@@ -273,6 +320,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /\bpay\b.*\btaxes\b/i,
       /arrested.*tax/i,
       /jail.*tax/i,
+      // Natural language patterns
+      /said\s*they\s*were?\s*(from|with)\s*(the\s+)?irs/i,
+      /called\s*(from|saying)\s*(they\s*were?\s*)?(the\s+)?irs/i,
+      /claiming\s*to\s*be\s*(from\s+)?(the\s+)?irs/i,
+      /said\s*I\s*(owe|have)\s*(back\s+)?taxes/i,
     ],
   },
   {
@@ -316,6 +368,10 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /been\s*arrested/i,
       /in\s*the\s*hospital/i,
       /had\s*an\s*accident/i,
+      // Natural language patterns
+      /said\s*(they\s*were?\s*)?(my\s+)?(son|daughter|grandson|granddaughter|grandchild|nephew|niece)/i,
+      /someone\s*claiming\s*to\s*be\s*(my\s+)?(son|daughter|grandson|granddaughter|grandchild)/i,
+      /pretending\s*to\s*be\s*(my\s+)?(son|daughter|grandson|granddaughter|grandchild|family)/i,
     ],
   },
   {
@@ -333,6 +389,12 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /criminal.*charge/i,
       /felony/i,
       /misdemeanor/i,
+      // Natural language patterns
+      /said\s*they\s*were?\s*(from|with)\s*(the\s+)?(police|sheriff|fbi|dea)/i,
+      /called\s*(from|saying)\s*(they\s*were?\s*)?(the\s+)?(police|sheriff)/i,
+      /claiming\s*to\s*be\s*(a\s+)?(police|officer|detective|sheriff|agent)/i,
+      /said\s*(there'?s?\s+)?(a\s+)?warrant/i,
+      /threatened\s*(to\s+)?(arrest|jail|prosecute)/i,
     ],
   },
 
@@ -376,6 +438,15 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /unless\s*you/i,
       /or\s*else/i,
       /consequences/i,
+      // Natural language patterns
+      /threatened/i,
+      /threatening/i,
+      /scared\s*me/i,
+      /pressur(e|ed|ing)/i,
+      /wouldn'?t\s*let\s*me/i,
+      /wouldn'?t\s*stop/i,
+      /kept\s*(calling|texting|saying)/i,
+      /very\s*(aggressive|pushy|insistent)/i,
     ],
   },
   {
@@ -400,6 +471,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /don'?t\s*hang\s*up/i,
       /stay\s*on\s*the\s*(line|phone)/i,
       /don'?t\s*call\s*(anyone|the\s*police|your\s*bank)/i,
+      // Natural language patterns
+      /told\s*me\s*not\s*to\s*tell/i,
+      /said\s*(not\s+to|don'?t)\s*(tell|talk|call|contact)/i,
+      /said\s*to\s*keep\s*(it\s+)?quiet/i,
+      /said\s*it\s*was\s*confidential/i,
     ],
   },
 
@@ -589,6 +665,18 @@ function buildDoNow(flags: RedFlag[]): string[] {
     items.push('Do NOT allow anyone to access your computer remotely');
   }
 
+  if (flags.includes('impersonation_tech_support')) {
+    items.push('Do NOT download any software or give remote access — real tech companies never cold-call you');
+  }
+
+  if (flags.includes('lottery_prize_scam')) {
+    items.push('You did NOT win anything — real prizes never require upfront payment');
+  }
+
+  if (flags.includes('romance_scam')) {
+    items.push('Stop sending money — verify this person\'s identity through a video call with a trusted friend present');
+  }
+
   if (flags.includes('money_transfer')) {
     items.push('Do NOT send any money or transfer any funds');
   }
@@ -656,6 +744,22 @@ export function buildSafeResponseScript(flags: RedFlag[]): string {
     return 'I need to hang up and call my bank directly using the number on the back of my card. I will not share any account information over this call.';
   }
 
+  if (flags.includes('impersonation_tech_support')) {
+    return 'I did not request tech support. I will not download anything or give you access to my computer. I am hanging up now.';
+  }
+
+  if (flags.includes('lottery_prize_scam')) {
+    return 'I did not enter any contest. Real prizes do not require payment. I am not sending any money.';
+  }
+
+  if (flags.includes('romance_scam')) {
+    return 'I care about you, but I cannot send money to someone I have not met in person. Let\'s arrange a video call with my family present.';
+  }
+
+  if (flags.includes('impersonation_amazon')) {
+    return 'I will check my order status directly on the official website. I am not clicking any links or paying any fees over the phone.';
+  }
+
   if (flags.includes('gift_card') || flags.includes('money_transfer')) {
     return 'I do not send money or buy gift cards for people I cannot verify. I need to speak with a family member before doing anything.';
   }
@@ -697,6 +801,30 @@ export function buildSuggestions(flags: RedFlag[], riskLevel: RiskLevel): string
   if (flags.includes('otp_request') || flags.includes('password_request')) {
     items.push(
       'No legitimate company will ever ask for your password or a one-time code over the phone.'
+    );
+  }
+
+  if (flags.includes('impersonation_tech_support')) {
+    items.push(
+      'Microsoft, Apple, and other tech companies will never call you about a virus. If you see a pop-up warning, close the browser — do not call the number shown.'
+    );
+  }
+
+  if (flags.includes('lottery_prize_scam')) {
+    items.push(
+      'You cannot win a contest you did not enter. Any prize that requires payment is a scam — 100% of the time.'
+    );
+  }
+
+  if (flags.includes('romance_scam')) {
+    items.push(
+      'If someone you have never met in person asks for money, it is almost certainly a scam. Talk to a trusted friend or family member before sending anything.'
+    );
+  }
+
+  if (flags.includes('impersonation_amazon')) {
+    items.push(
+      'Check your orders directly at amazon.com, usps.com, or fedex.com. Legitimate delivery companies never ask for payment via text message.'
     );
   }
 

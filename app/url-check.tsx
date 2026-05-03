@@ -20,9 +20,9 @@ import { Colors } from '../constants/colors';
 import { analyzeUrl, type UrlAnalysisResult } from '../lib/analyzeUrl';
 
 const RISK_CONFIG = {
-  Dangerous: { bg: '#FDECEA', border: Colors.red, icon: '🚨', color: Colors.red },
-  Suspicious: { bg: '#FFF8E7', border: Colors.amber, icon: '⚠️', color: Colors.amber },
-  'Probably Safe': { bg: '#EDF7EE', border: Colors.green, icon: '✅', color: Colors.green },
+  Dangerous: { bg: '#FDECEA', border: Colors.red, icon: '', color: Colors.red },
+  Suspicious: { bg: '#FFF8E7', border: Colors.amber, icon: '', color: Colors.amber },
+  'Probably Safe': { bg: '#EDF7EE', border: Colors.green, icon: '', color: Colors.green },
 } as const;
 
 export default function UrlCheckScreen(): React.JSX.Element {
@@ -61,7 +61,7 @@ export default function UrlCheckScreen(): React.JSX.Element {
           </TouchableOpacity>
 
           {/* Header */}
-          <Text style={styles.title}>🔗 Check a Link</Text>
+          <Text style={styles.title}>Check a Link</Text>
           <Text style={styles.subtitle}>
             Paste a suspicious URL below and we'll scan it for scam indicators.
           </Text>
@@ -105,7 +105,7 @@ export default function UrlCheckScreen(): React.JSX.Element {
             disabled={!canCheck}
             accessibilityRole="button"
           >
-            <Text style={styles.checkBtnText}>🔍 Scan URL</Text>
+            <Text style={styles.checkBtnText}>Scan URL</Text>
           </TouchableOpacity>
 
           {/* Results */}
@@ -116,7 +116,6 @@ export default function UrlCheckScreen(): React.JSX.Element {
                 styles.riskBanner,
                 { backgroundColor: RISK_CONFIG[result.riskLevel].bg, borderColor: RISK_CONFIG[result.riskLevel].border },
               ]}>
-                <Text style={styles.riskIcon}>{RISK_CONFIG[result.riskLevel].icon}</Text>
                 <Text style={[styles.riskText, { color: RISK_CONFIG[result.riskLevel].color }]}>
                   {result.riskLevel}
                 </Text>
@@ -126,7 +125,7 @@ export default function UrlCheckScreen(): React.JSX.Element {
               {/* Flags */}
               {result.flags.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>⚠️ Issues Found</Text>
+                  <Text style={styles.sectionTitle}>Issues Found</Text>
                   {result.flags.map((flag, i) => (
                     <View key={i} style={styles.flagRow}>
                       <Text style={styles.flagDot}>•</Text>
@@ -138,7 +137,7 @@ export default function UrlCheckScreen(): React.JSX.Element {
 
               {/* Advice */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>✅ What to Do</Text>
+                <Text style={styles.sectionTitle}>What To Do</Text>
                 {result.advice.map((item, i) => (
                   <View key={i} style={styles.flagRow}>
                     <Text style={styles.actionNumber}>{i + 1}</Text>
@@ -174,13 +173,13 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 18, color: Colors.grayText, lineHeight: 26 },
   input: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: Colors.softBlue,
-    padding: 18,
-    fontSize: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D4D4D8',
+    padding: 16,
+    fontSize: 16,
     color: Colors.darkText,
-    minHeight: 56,
+    minHeight: 48,
   },
   examples: { gap: 8 },
   examplesLabel: { fontSize: 16, color: Colors.grayText, fontWeight: '600' },
@@ -195,14 +194,14 @@ const styles = StyleSheet.create({
   exampleChipText: { fontSize: 14, color: Colors.softBlue, fontFamily: 'monospace' },
   checkBtn: {
     backgroundColor: Colors.deepNavy,
-    borderRadius: 16,
-    paddingVertical: 18,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    minHeight: 64,
+    minHeight: 52,
     justifyContent: 'center',
   },
   checkBtnDisabled: { opacity: 0.4 },
-  checkBtnText: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  checkBtnText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
   results: { gap: 16 },
   riskBanner: {
     borderRadius: 20,
@@ -211,7 +210,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  riskIcon: { fontSize: 48 },
   riskText: { fontSize: 26, fontWeight: '800', textAlign: 'center' },
   domainText: { fontSize: 14, color: Colors.grayText, fontFamily: 'monospace' },
   section: {
