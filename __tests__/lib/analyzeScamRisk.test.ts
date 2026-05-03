@@ -86,17 +86,19 @@ describe('analyzeScamRisk — unit tests', () => {
   });
 
   // -------------------------------------------------------------------------
-  // inputSummary is first 100 chars of input
+  // inputSummary uses generateSubjectLine (smart subject lines)
   // -------------------------------------------------------------------------
-  it('sets inputSummary to the first 100 characters of the input', () => {
+  it('sets inputSummary to a cleaned phrase for a long input with no scam signals', () => {
     const longInput = 'a'.repeat(200);
     const result = analyzeScamRisk(longInput);
-    expect(result.inputSummary).toBe('a'.repeat(100));
+    // No scam signals → falls back to extractCleanPhrase, which truncates at 100 chars + ellipsis
+    expect(result.inputSummary).toBe('a'.repeat(100) + '...');
   });
 
-  it('sets inputSummary to the full input when input is shorter than 100 chars', () => {
+  it('sets inputSummary to the cleaned phrase for short input with no scam signals', () => {
     const shortInput = 'hello world';
     const result = analyzeScamRisk(shortInput);
+    // No scam signals, short text → extractCleanPhrase returns the text as-is
     expect(result.inputSummary).toBe('hello world');
   });
 

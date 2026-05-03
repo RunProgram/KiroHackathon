@@ -16,6 +16,7 @@
  */
 
 import type { AnalysisResult, RedFlag, RiskLevel, ScamType } from '../types';
+import { generateSubjectLine } from './generateSubjectLine';
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -935,6 +936,6 @@ export function analyzeScamRisk(inputText: string): AnalysisResult {
     verificationQuestions,
     caregiverRecommended,
     analyzedAt: new Date().toISOString(),
-    inputSummary: inputText.slice(0, 100),
+    inputSummary: generateSubjectLine({ inputText, scamType, redFlags: uniqueFlags, riskLevel }),
   };
 }
