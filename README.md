@@ -1,4 +1,4 @@
-# KiroHackathon
+# Kirohackathon 2026: TrustPause
 Team: Aras, Myanh, Adrian 
 
 
