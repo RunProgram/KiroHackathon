@@ -59,6 +59,11 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /told\s*me\s*to\s*buy.*card/i,
       /read\s*(the|them)\s*(numbers?|codes?)/i,
       /scratch\s*off/i,
+      // Additional retail patterns
+      /best\s*buy\s*gift/i,
+      /apple\s*gift/i,
+      /visa\s*gift/i,
+      /mastercard\s*gift/i,
     ],
   },
   {
@@ -134,6 +139,14 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /give\s*(them|him|her)\s*money/i,
       /asking\s*for\s*money/i,
       /demanding\s*(money|payment)/i,
+      // Cryptocurrency/investment scam patterns
+      /\binvest(ment|ing)?\b.*\b(guaranteed|double|triple|return)\b/i,
+      /\b(guaranteed|double|triple)\b.*\b(return|profit|income)\b/i,
+      /\btrading\s*(platform|account|opportunity)\b/i,
+      /\bpassive\s*income/i,
+      /\bget\s*rich/i,
+      /\bfinancial\s*freedom/i,
+      /\bpaypal\b.*\b(verify|confirm|suspend|locked|unauthorized)\b/i,
     ],
   },
   {
@@ -216,7 +229,8 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
     flag: 'impersonation_bank',
     weight: 2.5,
     patterns: [
-      /\bbank\b/i,
+      /\bbank\b.*\b(account|card|transfer|fraud|security|verify|suspend|frozen|locked|compromised|unauthorized)\b/i,
+      /\b(account|card|transfer|fraud|security|verify|suspend|frozen|locked|compromised|unauthorized)\b.*\bbank\b/i,
       /fraud\s*department/i,
       /suspicious.*transaction/i,
       /unauthorized.*transaction/i,
@@ -281,6 +295,13 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /claiming\s*to\s*be\s*(from\s+)?(amazon|usps|fedex|ups)/i,
       /text\s*(from|about|saying)\s*(amazon|usps|fedex|ups|delivery|package)/i,
       /got\s*a\s*(text|message|email)\s*(from|about|saying).*(package|delivery|order)/i,
+      // Additional delivery/shopping patterns
+      /\bshopify\b/i,
+      /\bebay\b.*\b(order|purchase|account|payment)\b/i,
+      /\bwalmart\b.*\b(order|delivery|account)\b/i,
+      /\btarget\b.*\b(order|delivery|account)\b/i,
+      /confirm\s*(your\s+)?(delivery|address|shipping)/i,
+      /update\s*(your\s+)?(delivery|address|shipping)/i,
     ],
   },
   {
@@ -379,8 +400,10 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
     flag: 'impersonation_police',
     weight: 2.5,
     patterns: [
-      /police/i,
-      /officer/i,
+      /\bpolice\b.*\b(warrant|arrest|investigation|charge|fine|penalty|call|department)\b/i,
+      /\b(warrant|arrest|investigation|charge|fine|penalty)\b.*\bpolice\b/i,
+      /\bofficer\b.*\b(warrant|arrest|investigation|charge|badge|department)\b/i,
+      /this\s*is\s*(an?\s+)?officer/i,
       /detective/i,
       /sheriff/i,
       /law\s*enforcement/i,
@@ -448,6 +471,13 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /wouldn'?t\s*stop/i,
       /kept\s*(calling|texting|saying)/i,
       /very\s*(aggressive|pushy|insistent)/i,
+      // Additional threat patterns
+      /\bfinal\s*warning\b/i,
+      /\bfinal\s*notice\b/i,
+      /\baccount\s*will\s*be\s*(closed|terminated|deleted)\b/i,
+      /\bimmediate\s*action\s*required\b/i,
+      /\bfailure\s*to\s*(respond|comply|act|pay)\b/i,
+      /\byour\s*account\s*has\s*been\s*(flagged|reported)\b/i,
     ],
   },
   {
@@ -502,6 +532,12 @@ export const RED_FLAG_RULES: RedFlagRule[] = [
       /pop.?up.*(warning|alert|virus)/i,
       /call\s*this\s*number.*(fix|remove|clean)/i,
       /refund.*(tech|support|subscription|norton|mcafee|geek)/i,
+      // Additional tech support patterns
+      /your\s*(subscription|license)\s*(has\s+)?(expired|expiring|been\s*cancelled)/i,
+      /auto.?renew(al|ed|ing)?/i,
+      /\brefund\b.*\$([\d,]+)/i,
+      /\$([\d,]+).*\brefund\b/i,
+      /charged\s*\$[\d,]+/i,
     ],
   },
   {
@@ -593,6 +629,13 @@ const CO_OCCURRENCE_BONUSES: Array<{ pair: FlagPair; bonus: number }> = [
   { pair: ['romance_scam', 'money_transfer'], bonus: 4 },
   { pair: ['romance_scam', 'secrecy'], bonus: 4 },
   { pair: ['romance_scam', 'urgency'], bonus: 3 },
+  { pair: ['otp_request', 'impersonation_amazon'], bonus: 3 },
+  { pair: ['ssn_medicare_request', 'urgency'], bonus: 3 },
+  { pair: ['ssn_medicare_request', 'impersonation_government'], bonus: 4 },
+  { pair: ['password_request', 'impersonation_amazon'], bonus: 3 },
+  { pair: ['impersonation_police', 'secrecy'], bonus: 4 },
+  { pair: ['lottery_prize_scam', 'secrecy'], bonus: 3 },
+  { pair: ['impersonation_irs', 'gift_card'], bonus: 4 },
 ];
 
 function computeCoOccurrenceBonus(flags: RedFlag[]): number {
@@ -617,18 +660,38 @@ const IMPERSONATION_TO_SCAM_TYPE: Partial<Record<RedFlag, ScamType>> = {
   impersonation_irs: 'irs_tax',
   impersonation_government: 'medicare_government',
   impersonation_family: 'grandparent_scam',
-  impersonation_police: 'bank_impersonation',
+  impersonation_police: 'medicare_government',
   impersonation_tech_support: 'tech_support',
   lottery_prize_scam: 'lottery_prize',
   romance_scam: 'romance_scam',
 };
 
+const SCAM_TYPE_PRIORITY: Record<ScamType, number> = {
+  grandparent_scam: 10,
+  romance_scam: 9,
+  tech_support: 8,
+  irs_tax: 7,
+  lottery_prize: 7,
+  medicare_government: 6,
+  bank_impersonation: 5,
+  amazon_delivery: 4,
+  unknown: 0,
+};
+
 function detectScamType(flags: RedFlag[]): ScamType {
+  let bestType: ScamType = 'unknown';
+  let bestPriority = 0;
   for (const flag of flags) {
     const mapped = IMPERSONATION_TO_SCAM_TYPE[flag];
-    if (mapped !== undefined) return mapped;
+    if (mapped !== undefined) {
+      const priority = SCAM_TYPE_PRIORITY[mapped];
+      if (priority > bestPriority) {
+        bestType = mapped;
+        bestPriority = priority;
+      }
+    }
   }
-  return 'unknown';
+  return bestType;
 }
 
 // ---------------------------------------------------------------------------
@@ -648,6 +711,10 @@ function buildDoNow(flags: RedFlag[]): string[] {
 
   if (flags.includes('gift_card')) {
     items.push('Do NOT buy any gift cards — no real company asks for these');
+  }
+
+  if (flags.includes('impersonation_police')) {
+    items.push('Real police never demand payment by phone — hang up and call your local police non-emergency number');
   }
 
   if (
@@ -741,6 +808,10 @@ export function buildSafeResponseScript(flags: RedFlag[]): string {
     return 'I do not discuss financial matters over the phone. If this is real, please send me something in writing. I will call the official number myself to verify.';
   }
 
+  if (flags.includes('impersonation_police')) {
+    return 'I am not going to discuss this over the phone. If there is a real warrant, I will contact my local police department directly to verify. I am hanging up now.';
+  }
+
   if (flags.includes('impersonation_bank')) {
     return 'I need to hang up and call my bank directly using the number on the back of my card. I will not share any account information over this call.';
   }
@@ -802,6 +873,18 @@ export function buildSuggestions(flags: RedFlag[], riskLevel: RiskLevel): string
   if (flags.includes('otp_request') || flags.includes('password_request')) {
     items.push(
       'No legitimate company will ever ask for your password or a one-time code over the phone.'
+    );
+  }
+
+  if (flags.includes('ssn_medicare_request')) {
+    items.push(
+      'Never give your Social Security number, Medicare number, or date of birth to someone who contacts you. Legitimate agencies already have this information.'
+    );
+  }
+
+  if (flags.includes('impersonation_police')) {
+    items.push(
+      'Real police officers will never demand payment over the phone. If someone claims there is a warrant, hang up and call your local police non-emergency number to verify.'
     );
   }
 
